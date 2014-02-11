@@ -7,8 +7,8 @@ import binascii
 import sys
 import unittest
 
-py3 = sys.version_info.major >= 3
-from_hex = lambda x: binascii.unhexlify(''.join(x.split()))
+py3 = (sys.version_info.major >= 3)
+from_hex = lambda x: binascii.unhexlify(bytearray(''.join(x.split()), encoding='utf-8'))
 to_hex = lambda x: binascii.hexlify(x)
 
 import tarantool.response
@@ -41,10 +41,7 @@ class field(unittest.TestCase):
         Test field instantiation from str or unicode value
         '''
         # Word "Test" in cyrillic utf-8 encoded
-        if py3:
-            value = str(b"\xd0\xa2\xd0\xb5\xd1\x81\xd1\x82", "utf-8")
-        else:
-            value = unicode(b"\xd0\xa2\xd0\xb5\xd1\x81\xd1\x82", "utf-8")
+        value = b"\xd0\xa2\xd0\xb5\xd1\x81\xd1\x82"
 
         self.assertEqual(
             tarantool.response.field(value),
@@ -57,7 +54,7 @@ class field(unittest.TestCase):
         '''
         Test field instantiation from raw bytes value
         '''
-        # Word "Test" in cyrillic utf-8 encoded
+    # Word "Test" in cyrillic utf-8 encoded
         value = b"\xd0\xa2\xd0\xb5\xd1\x81\xd1\x82"
 
         self.assertEqual(

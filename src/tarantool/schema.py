@@ -63,8 +63,9 @@ class Schema(object):
         if schema is None:
             return
 
-        for (space_no, space_descr) in schema.iteritems():
-            if not isinstance(space_no, (int, long)):
+        for space_no in schema:
+            space_descr = schema[space_no]
+            if not isinstance(space_no, int):
                 raise ValueError('Invalid space_no: %s' % space_no)
 
             # Space name
@@ -77,13 +78,14 @@ class Schema(object):
             # fields
             field_descrs = space_descr.get('fields', {})
             max_fieldno = 0
-            for field_no in field_descrs.iterkeys():
-                if not isinstance(field_no, (int, long)):
+            for field_no in field_descrs:
+                if not isinstance(field_no, int):
                     raise ValueError('Invalid field_no: %s' % field_no)
                 max_fieldno = max(max_fieldno, field_no)
 
             field_defs = [None] * (max_fieldno + 1)
-            for (field_no, field_descr) in field_descrs.iteritems():
+            for field_no in field_descrs:
+                field_descr = field_descrs[field_no]
                 assert field_no < len(field_defs)
                 if isinstance(field_descr, tuple):
                     (field_name, field_type) = field_descr
@@ -100,13 +102,14 @@ class Schema(object):
             # indexes
             index_descrs = space_descr.get('indexes', {})
             max_indexno = 0
-            for index_no in index_descrs.iterkeys():
-                if not isinstance(index_no, (int, long)):
+            for index_no in index_descrs:
+                if not isinstance(index_no, int):
                     raise ValueError('Invalid index_no: %s' % index_no)
                 max_indexno = max(max_indexno, index_no)
 
             index_defs = [None] * (max_indexno + 1)
-            for (index_no, index_descr) in index_descrs.iteritems():
+            for index_no in index_descrs:
+                index_descr = index_descrs[index_no]
                 if isinstance(index_descr, tuple):
                     (index_name, indexed_fields) = index_descr
                 elif isinstance(index_descr, dict):
@@ -153,9 +156,7 @@ class Schema(object):
             return RAW
         elif dtype == int:
             return NUM
-        elif dtype == long:
-            return NUM64
-        elif isinstance(dtype, basestring):
+        elif isinstance(dtype, (bytes, str)):
             return STR
         else:
             raise ValueError("Invalid data type: %s" % dtype)
@@ -229,9 +230,9 @@ class Schema(object):
         :rtype: bytes
         '''
         if __debug__:
-            if not isinstance(value, (int, long)):
+            if not isinstance(value, int):
                 raise TypeError(
-                    "Invalid argument type '%s'. Only 'int' or 'long' "
+                    "Invalid argument type '%s'. Only 'int'"
                     "expected" % type(value).__name__)
             if (value < 0) or (value > 18446744073709551615):
                 raise TypeError(
@@ -262,27 +263,25 @@ class Schema(object):
         if cast_to:
             if cast_to in (NUM, int):
                 return self._pack_value_int(value)
-            elif cast_to in (STR, RAW, basestring, bytes, None):
-                return str(value)
-            elif cast_to in (NUM64, long):
+            elif cast_to in (STR, RAW, str, bytes, None):
+                return bytes(value)
+            elif cast_to in (NUM64):
                 return self._pack_value_int64(value)
             else:
                 raise TypeError("Invalid field type %d." % cast_to)
         else:
             # try to autodetect tarantool types based on python types
-            if isinstance(value, basestring):
-                return value
+            if isinstance(value, (bytes, str)):
+                return bytes(value)
             elif isinstance(value, int):
                 if value > 4294967295:
                     return self._pack_value_int64(value)
                 else:
                     return self._pack_value_int(value)
-            elif isinstance(value, long):
-                return self._pack_value_int64(value)
             else:
                 raise TypeError(
-                    "Invalid argument type '%s'. Only 'str', 'int' or "
-                    "'long' expected" % type(value).__name__)
+                    "Invalid argument type '%s'. Only 'str', 'int' "
+                    "expected" % type(value).__name__)
 
     def unpack_value(self, packed_value, cast_to):
         '''\
@@ -303,9 +302,9 @@ class Schema(object):
             return self._unpack_value_int(packed_value)
         elif cast_to in (RAW, bytes, None):
             return packed_value
-        elif cast_to in (STR, basestring):
-            return unicode(packed_value)
-        elif cast_to in (NUM64, long):
+        elif cast_to in (STR, str):
+            return bytes(packed_value)
+        elif cast_to in (NUM64):
             return self._unpack_value_int64(packed_value)
         else:
             raise TypeError("Invalid field type %s" % (cast_to))
@@ -332,7 +331,7 @@ class Schema(object):
         '''
 
         if field_defs is None and space_no is not None:
-            assert isinstance(space_no, (int, long))
+            assert isinstance(space_no, int)
             # Space schema must be defined if use want to use space by name
             space_def = self._spaces.get(space_no, None)
             if space_def is not None:
@@ -382,7 +381,7 @@ class Schema(object):
         '''
 
         if field_defs is None and space_no is not None:
-            assert isinstance(space_no, (int, long))
+            assert isinstance(space_no, int)
             # Space schema must be defined if use want to use space by name
             space_def = self._spaces.get(space_no, None)
             if space_def is not None:

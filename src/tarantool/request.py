@@ -46,7 +46,7 @@ class Request(object):
         (
             struct_B.pack(val) if val < 128 else struct_BB.pack(
                 val >> 7 & 0xff | 0x80, val & 0x7F)
-            for val in xrange(0x4000)
+            for val in range(0x4000)
         )
     )
 
@@ -151,6 +151,7 @@ class Request(object):
         :return: packed tuple
         :rtype: bytes
         '''
+
         return self.pack_fields(
             self.conn.schema.pack_key(values, space_no, index_no))
 
@@ -265,7 +266,7 @@ class RequestUpdate(Request):
     def __init__(self, conn, space_name, key, op_list, return_tuple):
         super(RequestUpdate, self).__init__(conn)
         flags = 1 if return_tuple else 0
-        assert isinstance(key, (int, long, basestring))
+        assert isinstance(key, (int, bytes))
 
         space_no = self.conn.schema.space_no(space_name)
         request_body = \
