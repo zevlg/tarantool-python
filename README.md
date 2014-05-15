@@ -29,11 +29,8 @@ func main() {
 
 
   client, err := tarantool.Connect(server)
-  if err != nil {
-    t.Errorf("No connection available")
-  }
 
-  var resp *Response
+  var resp *tarantool.Response
 
   resp, err = client.Ping()
   fmt.Println("Ping")
