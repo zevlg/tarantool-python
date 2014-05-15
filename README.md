@@ -98,4 +98,51 @@ func main() {
   fmt.Println("Data", resp.Data)
   fmt.Println("----")
 }
+
+// #=> Connecting to 127.0.0.1:3013 ...
+// #=> Connected ...
+// #=> Greeting ... Success
+// #=> Version: Tarantool 1.6.2-34-ga53cf4a
+// #=> 
+// #=> Insert
+// #=> ERROR <nil>
+// #=> Code 0
+// #=> Data [[12 Hello World Olga]]
+// #=> ----
+// #=> Select
+// #=> ERROR <nil>
+// #=> Code 0
+// #=> Data [[12 Hello World Olga]]
+// #=> ----
+// #=> Replace
+// #=> ERROR <nil>
+// #=> Code 0
+// #=> Data [[12 Hello Mars Anna]]
+// #=> ----
+// #=> Select
+// #=> ERROR <nil>
+// #=> Code 0
+// #=> Data [[12 Hello Mars Anna]]
+// #=> ----
+// #=> Update
+// #=> ERROR <nil>
+// #=> Code 0
+// #=> Data [[12 Hello Moon]]
+// #=> ----
+// #=> Select
+// #=> ERROR <nil>
+// #=> Code 0
+// #=> Data [[12 Hello Moon]]
+// #=> ----
+// #=> Delete
+// #=> ERROR <nil>
+// #=> Code 0
+// #=> Data [[12 Hello Moon]]
+// #=> ----
+// #=> Call
+// #=> ERROR Execute access denied for user 'guest' to function 'box.cfg()'
+// #=> Code 13570
+// #=> Data []
+// #=> ----
 ```
+
