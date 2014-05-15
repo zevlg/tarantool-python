@@ -31,15 +31,15 @@ func TestClient(t *testing.T) {
 
 	var resp *Response
 
-	resp, err = client.Ping()
-	if err != nil {
-		t.Errorf("Can't Ping", err)
-	}
+	// resp, err = client.Ping()
+	// if err != nil {
+	// 	t.Errorf("Can't Ping", err)
+	// }
 
-	fmt.Println("Ping")
-	fmt.Println("Code", resp.Code)
-	fmt.Println("Data", resp.Data)
-	fmt.Println("----")
+	// fmt.Println("Ping")
+	// fmt.Println("Code", resp.Code)
+	// fmt.Println("Data", resp.Data)
+	// fmt.Println("----")
 
 	resp, err = client.Insert(spaceNo, tuple1)
 	fmt.Println("Insert")
@@ -83,7 +83,7 @@ func TestClient(t *testing.T) {
 	fmt.Println("Data", resp.Data)
 	fmt.Println("----")
 
-	responses := make(chan *Response, 1000)
+	responses := make(chan *Response)
 	cnt1 := 200
 	cnt2 := 500
 	for j := 0; j < cnt1; j++ {
@@ -95,7 +95,7 @@ func TestClient(t *testing.T) {
 		}
 		for i := 0; i < cnt2; i++ {
 			resp = <-responses
-			fmt.Println(resp)
+			// fmt.Println(resp)
 		}
 	}
 

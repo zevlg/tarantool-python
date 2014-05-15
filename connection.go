@@ -94,17 +94,25 @@ func (conn *Connection) reader() {
 }
 
 func (conn *Connection) write(data []byte) (err error) {
-	_, err = conn.connection.Write(data)
+	l, err := conn.connection.Write(data)
+	if l != len(data) {
+		panic("Wrong length writed")
+	}
 	return
 }
 
 func (conn *Connection) read() (response []byte, err error){
 	var length_uint uint32
+	var l, tl int
 	length := make([]byte, PacketLengthBytes)	
-	
-	_, err = conn.connection.Read(length)
-	if err != nil {
-		return
+
+	tl = 0
+	for tl < int(PacketLengthBytes) {
+		l, err = conn.connection.Read(length[tl:])
+		tl += l
+		if err != nil {
+			return
+		}
 	}
 
     err = msgpack.Unmarshal(length, &length_uint)
@@ -114,7 +122,14 @@ func (conn *Connection) read() (response []byte, err error){
 
 	response = make([]byte, length_uint)
 	if(length_uint > 0){
-		_, err = conn.connection.Read(response)
+		tl = 0
+		for tl < int(length_uint) {
+			l, err = conn.connection.Read(response[tl:])
+			tl += l
+			if err != nil {
+				return
+			}
+		}
 	}
 
 	return
