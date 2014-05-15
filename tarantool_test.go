@@ -31,15 +31,12 @@ func TestClient(t *testing.T) {
 
 	var resp *Response
 
-	// resp, err = client.Ping()
-	// if err != nil {
-	// 	t.Errorf("Can't Ping", err)
-	// }
-
-	// fmt.Println("Ping")
-	// fmt.Println("Code", resp.Code)
-	// fmt.Println("Data", resp.Data)
-	// fmt.Println("----")
+	resp, err = client.Ping()
+	fmt.Println("Ping")
+	fmt.Println("ERROR", err)
+	fmt.Println("Code", resp.Code)
+	fmt.Println("Data", resp.Data)
+	fmt.Println("----")
 
 	resp, err = client.Insert(spaceNo, tuple1)
 	fmt.Println("Insert")
