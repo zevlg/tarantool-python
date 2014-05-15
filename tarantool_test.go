@@ -3,9 +3,6 @@ package tarantool
 import(
 	"testing"
 	"fmt"
-	// "time"
-	// "bytes"
-	// "github.com/vmihailenco/msgpack"
 )
 
 func TestClient(t *testing.T) {
@@ -31,12 +28,12 @@ func TestClient(t *testing.T) {
 
 	var resp *Response
 
-	resp, err = client.Ping()
-	fmt.Println("Ping")
-	fmt.Println("ERROR", err)
-	fmt.Println("Code", resp.Code)
-	fmt.Println("Data", resp.Data)
-	fmt.Println("----")
+	// resp, err = client.Ping()
+	// fmt.Println("Ping")
+	// fmt.Println("ERROR", err)
+	// fmt.Println("Code", resp.Code)
+	// fmt.Println("Data", resp.Data)
+	// fmt.Println("----")
 
 	resp, err = client.Insert(spaceNo, tuple1)
 	fmt.Println("Insert")
@@ -81,7 +78,7 @@ func TestClient(t *testing.T) {
 	fmt.Println("----")
 
 	responses := make(chan *Response)
-	cnt1 := 200
+	cnt1 := 50
 	cnt2 := 500
 	for j := 0; j < cnt1; j++ {
 		for i := 0; i < cnt2; i++ {

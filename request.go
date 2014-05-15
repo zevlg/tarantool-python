@@ -121,10 +121,7 @@ func (req *Request) perform() (resp *Response, err error) {
 	req.conn.mutex.Unlock()
 
 	req.conn.packets <- (packet)
-	// req.conn.write(packet)
 	resp = <-responseChan
-	// respB, err := req.conn.read()
-	// resp = NewResponse(respB)
 
 	if resp.Error != "" {
 		err = errors.New(resp.Error)

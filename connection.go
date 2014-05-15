@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"bytes"
 	"sync"
-	// "encoding/binary"
 )
 
 type Connection struct {
