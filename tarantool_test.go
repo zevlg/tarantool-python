@@ -3,6 +3,7 @@ package tarantool
 import(
 	"testing"
 	"fmt"
+	// "time"
 	// "bytes"
 	// "github.com/vmihailenco/msgpack"
 )
@@ -13,7 +14,7 @@ func TestClient(t *testing.T) {
 	indexNo   := uint32(0)
 	limit     := uint32(10)
 	offset    := uint32(0)
-	iterator  := ""
+	iterator  := "box.iterator.ALL" 
 	key       := []interface{}{ 12 }
 	tuple1    := []interface{}{ 12, "Hello World", "Olga" }
 	tuple2    := []interface{}{ 12, "Hello Mars", "Anna" }
@@ -28,9 +29,9 @@ func TestClient(t *testing.T) {
 		t.Errorf("No connection available")
 	}
 
-	space := client.Space(spaceNo)
-	
-	resp, err := space.Ping()
+	var resp *Response
+
+	resp, err = client.Ping()
 	if err != nil {
 		t.Errorf("Can't Ping", err)
 	}
@@ -82,6 +83,22 @@ func TestClient(t *testing.T) {
 	fmt.Println("Data", resp.Data)
 	fmt.Println("----")
 
+	responses := make(chan *Response, 1000)
+	cnt1 := 200
+	cnt2 := 500
+	for j := 0; j < cnt1; j++ {
+		for i := 0; i < cnt2; i++ {
+			go func(){
+				resp, err = client.Select(spaceNo, indexNo, offset, limit, iterator, key)
+				responses <- resp
+			}()
+		}
+		for i := 0; i < cnt2; i++ {
+			resp = <-responses
+			fmt.Println(resp)
+		}
+	}
+
 	resp, err = client.Delete(spaceNo, indexNo, key)
 	fmt.Println("Delete")
 	fmt.Println("ERROR", err)
@@ -95,4 +112,5 @@ func TestClient(t *testing.T) {
 	fmt.Println("Code", resp.Code)
 	fmt.Println("Data", resp.Data)
 	fmt.Println("----")
+
 }

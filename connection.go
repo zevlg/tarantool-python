@@ -4,19 +4,19 @@ import (
 	"net"
 	"fmt"
 	"github.com/vmihailenco/msgpack"
-	// "atomic"
+	"sync/atomic"
 	"bytes"
+	"sync"
 	// "encoding/binary"
-)
-
-const (
-	PacketLengthBytes = 5
 )
 
 type Connection struct {
 	connection net.Conn
-	requestId  int32
+	mutex      *sync.Mutex
+	requestId  uint64
 	Greeting   *Greeting
+	requests   map[uint64]chan *Response
+	packets    chan []byte
 }
 
 type Greeting struct {
@@ -30,11 +30,15 @@ func Connect(addr string) (conn *Connection, err error) {
 	if err != nil {
 		return
 	}
+	connection.(*net.TCPConn).SetNoDelay(true)
 
 	fmt.Println("Connected ...")
 
-	conn = &Connection{ connection, 0, &Greeting{} }
+	conn = &Connection{ connection, &sync.Mutex{}, 0, &Greeting{}, make(map[uint64]chan *Response), make(chan []byte) }
 	err = conn.handShake()
+
+	go conn.writer()
+	go conn.reader()
 
 	return
 }
@@ -55,19 +59,54 @@ func (conn *Connection) handShake() (err error) {
 	return
 }
 
-func (conn *Connection) write(data *bytes.Buffer) (err error) {
-	_, err = conn.connection.Write(data.Bytes())
+func (conn *Connection) writer(){
+	var (
+		err error
+		packet []byte
+	)
+	for {
+		packet = <- conn.packets
+		err = conn.write(packet)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (conn *Connection) reader() {
+	var (
+		err error
+		resp_bytes []byte
+	)
+	for {
+		resp_bytes, err = conn.read()
+		if err != nil {
+			panic(err)
+		}
+
+		resp := NewResponse(resp_bytes)
+		respChan := conn.requests[resp.RequestId]
+		conn.mutex.Lock()
+		delete(conn.requests, resp.RequestId)
+		conn.mutex.Unlock()
+		respChan <- resp
+	}
+}
+
+func (conn *Connection) write(data []byte) (err error) {
+	_, err = conn.connection.Write(data)
 	return
 }
 
 func (conn *Connection) read() (response []byte, err error){
-	length := make([]byte, PacketLengthBytes)
+	var length_uint uint32
+	length := make([]byte, PacketLengthBytes)	
+	
 	_, err = conn.connection.Read(length)
 	if err != nil {
 		return
 	}
 
-	var length_uint uint32
     err = msgpack.Unmarshal(length, &length_uint)
 	if err != nil {
 		return
@@ -81,7 +120,7 @@ func (conn *Connection) read() (response []byte, err error){
 	return
 }
 
-func (conn *Connection) nextRequestId() (requestId int32) {
-	conn.requestId = conn.requestId + 1
+func (conn *Connection) nextRequestId() (requestId uint64) {
+	conn.requestId = atomic.AddUint64(&conn.requestId, 1)
 	return conn.requestId
 }

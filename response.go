@@ -1,30 +1,22 @@
 package tarantool
 
 import(
-	"errors"
 	"github.com/vmihailenco/msgpack"
 )
 
 type Response struct {
-	Code uint64
-	Data []interface{}
+	RequestId uint64
+	Code      uint64
+	Error     string
+	Data      []interface{}
 }
 
-type Resp struct {
-	number int
-	string1 string
-	string2 string
-	string3 string
-	string4 string
-	string5 string
-	string6 string
-}
-
-func NewResponse(bytes []byte) (resp *Response, err error) {
+func NewResponse(bytes []byte) (resp *Response) {
 	var header, body map[int32]interface{}
 	resp = &Response{}
 
 	msgpack.Unmarshal(bytes, &header, &body)
+	resp.RequestId = header[KeySync].(uint64)
 	resp.Code = header[KeyCode].(uint64)
 	if body[KeyData] != nil {
 		data := body[KeyData].([]interface{})
@@ -35,8 +27,7 @@ func NewResponse(bytes []byte) (resp *Response, err error) {
 	}
 
 	if resp.Code != OkCode {
-		errText := body[KeyError].(string)
-		err = errors.New(errText)
+		resp.Error = body[KeyError].(string)
 	}
 
 	return 

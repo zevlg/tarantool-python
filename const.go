@@ -25,4 +25,6 @@ const (
 	KeyError         = 0x31
 
 	OkCode           = uint64(0)
+
+	PacketLengthBytes = 5
 )

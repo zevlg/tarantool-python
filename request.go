@@ -1,13 +1,13 @@
 package tarantool
 
 import(
-	"bytes"
 	"github.com/vmihailenco/msgpack"
+	"errors"
 )
 
 type Request struct {
 	conn        *Connection
-	requestId   int32
+	requestId   uint64
 	requestCode int32
 	body        map[int]interface{}
 }
@@ -114,22 +114,25 @@ func (req *Request) perform() (resp *Response, err error) {
 		return
 	}
 
-	err = req.conn.write(packet)
-	if err != nil {
-		return
+	responseChan := make(chan *Response)
+
+	req.conn.mutex.Lock()
+	req.conn.requests[req.requestId] = responseChan
+	req.conn.mutex.Unlock()
+
+	req.conn.packets <- (packet)
+	// req.conn.write(packet)
+	resp = <-responseChan
+	// respB, err := req.conn.read()
+	// resp = NewResponse(respB)
+
+	if resp.Error != "" {
+		err = errors.New(resp.Error)
 	}
-
-	resp_bytes, err := req.conn.read()
-	if err != nil {
-		return
-	}
-
-	resp, err = NewResponse(resp_bytes)
-
 	return
 }
 
-func (req *Request) pack() (packet *bytes.Buffer, err error) {
+func (req *Request) pack() (packet []byte, err error) {
 	var header, body, packetLength []byte
 
 	msg_header := make(map[int]interface{})
@@ -152,11 +155,8 @@ func (req *Request) pack() (packet *bytes.Buffer, err error) {
 		return
 	}
 
-	packet = new(bytes.Buffer)
-	packet.Write(packetLength)
-	packet.Write(header)
-	packet.Write(body)
-
+	packet = append(packet, packetLength...)
+	packet = append(packet, header...)
+	packet = append(packet, body...)
 	return
 }
-
