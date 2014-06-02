@@ -24,7 +24,7 @@ const (
 	KeyData          = 0x30
 	KeyError         = 0x31
 
-	OkCode           = uint64(0)
+	OkCode           = uint32(0)
 
 	PacketLengthBytes = 5
 )

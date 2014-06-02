@@ -12,9 +12,9 @@ import (
 type Connection struct {
 	connection net.Conn
 	mutex      *sync.Mutex
-	requestId  uint64
+	requestId  uint32
 	Greeting   *Greeting
-	requests   map[uint64]chan *Response
+	requests   map[uint32]chan *Response
 	packets    chan []byte
 }
 
@@ -33,7 +33,7 @@ func Connect(addr string) (conn *Connection, err error) {
 
 	fmt.Println("Connected ...")
 
-	conn = &Connection{ connection, &sync.Mutex{}, 0, &Greeting{}, make(map[uint64]chan *Response), make(chan []byte) }
+	conn = &Connection{ connection, &sync.Mutex{}, 0, &Greeting{}, make(map[uint32]chan *Response), make(chan []byte) }
 	err = conn.handShake()
 
 	go conn.writer()
@@ -134,7 +134,7 @@ func (conn *Connection) read() (response []byte, err error){
 	return
 }
 
-func (conn *Connection) nextRequestId() (requestId uint64) {
-	conn.requestId = atomic.AddUint64(&conn.requestId, 1)
+func (conn *Connection) nextRequestId() (requestId uint32) {
+	conn.requestId = atomic.AddUint32(&conn.requestId, 1)
 	return conn.requestId
 }

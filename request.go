@@ -7,7 +7,7 @@ import(
 
 type Request struct {
 	conn        *Connection
-	requestId   uint64
+	requestId   uint32
 	requestCode int32
 	body        map[int]interface{}
 }

@@ -5,8 +5,8 @@ import(
 )
 
 type Response struct {
-	RequestId uint64
-	Code      uint64
+	RequestId uint32
+	Code      uint32
 	Error     string
 	Data      []interface{}
 }
@@ -16,8 +16,8 @@ func NewResponse(bytes []byte) (resp *Response) {
 	resp = &Response{}
 
 	msgpack.Unmarshal(bytes, &header, &body)
-	resp.RequestId = header[KeySync].(uint64)
-	resp.Code = header[KeyCode].(uint64)
+	resp.RequestId = uint32(header[KeySync].(uint64))
+	resp.Code = uint32(header[KeyCode].(uint64))
 	if body[KeyData] != nil {
 		data := body[KeyData].([]interface{})
 		resp.Data = make([]interface{}, len(data))
