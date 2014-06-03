@@ -18,7 +18,7 @@ func main() {
   indexNo   := uint32(0)
   limit     := uint32(10)
   offset    := uint32(0)
-  iterator  := "box.iterator.ALL" 
+  iterator  := IterAll
   key       := []interface{}{ 12 }
   tuple1    := []interface{}{ 12, "Hello World", "Olga" }
   tuple2    := []interface{}{ 12, "Hello Mars", "Anna" }
