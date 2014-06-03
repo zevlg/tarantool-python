@@ -28,7 +28,7 @@ func (conn *Connection) Ping() (resp *Response, err error) {
 	return
 }
 
-func (conn *Connection) Select(spaceNo, indexNo, offset, limit uint32, iterator string, key []interface{}) (resp *Response, err error) {
+func (conn *Connection) Select(spaceNo, indexNo, offset, limit, iterator uint32, key []interface{}) (resp *Response, err error) {
 	request := conn.NewRequest(SelectRequest)
 
 	request.body[KeySpaceNo]  = spaceNo

@@ -7,11 +7,11 @@ import(
 
 func TestClient(t *testing.T) {
 	server    := "127.0.0.1:3013"
-	spaceNo   := uint32(514)
+	spaceNo   := uint32(512)
 	indexNo   := uint32(0)
 	limit     := uint32(10)
 	offset    := uint32(0)
-	iterator  := "box.iterator.ALL" 
+	iterator  := uint32(0)
 	key       := []interface{}{ 12 }
 	tuple1    := []interface{}{ 12, "Hello World", "Olga" }
 	tuple2    := []interface{}{ 12, "Hello Mars", "Anna" }
@@ -28,12 +28,12 @@ func TestClient(t *testing.T) {
 
 	var resp *Response
 
-	// resp, err = client.Ping()
-	// fmt.Println("Ping")
-	// fmt.Println("ERROR", err)
-	// fmt.Println("Code", resp.Code)
-	// fmt.Println("Data", resp.Data)
-	// fmt.Println("----")
+	resp, err = client.Ping()
+	fmt.Println("Ping")
+	fmt.Println("ERROR", err)
+	fmt.Println("Code", resp.Code)
+	fmt.Println("Data", resp.Data)
+	fmt.Println("----")
 
 	resp, err = client.Insert(spaceNo, tuple1)
 	fmt.Println("Insert")
@@ -78,7 +78,7 @@ func TestClient(t *testing.T) {
 	fmt.Println("----")
 
 	responses := make(chan *Response)
-	cnt1 := 50
+	cnt1 := 500
 	cnt2 := 500
 	for j := 0; j < cnt1; j++ {
 		for i := 0; i < cnt2; i++ {
