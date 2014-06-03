@@ -11,7 +11,7 @@ func TestClient(t *testing.T) {
 	indexNo   := uint32(0)
 	limit     := uint32(10)
 	offset    := uint32(0)
-	iterator  := uint32(0)
+	iterator  := IterAll
 	key       := []interface{}{ 12 }
 	tuple1    := []interface{}{ 12, "Hello World", "Olga" }
 	tuple2    := []interface{}{ 12, "Hello Mars", "Anna" }
@@ -78,7 +78,7 @@ func TestClient(t *testing.T) {
 	fmt.Println("----")
 
 	responses := make(chan *Response)
-	cnt1 := 500
+	cnt1 := 50
 	cnt2 := 500
 	for j := 0; j < cnt1; j++ {
 		for i := 0; i < cnt2; i++ {
