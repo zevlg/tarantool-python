@@ -39,10 +39,19 @@ class TarantoolAdmin(object):
         self.port = port
         self.is_connected = False
         self.socket = None
+
     def connect(self):
         self.socket = socket.create_connection((self.host, self.port))
         self.socket.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         self.is_connected = True
+        self.recv_exactly(128)
+
+    def recv_exactly(self, size):
+        if not self.is_connected:
+            return False
+        while (size > 0):
+            response = self.socket.recv(size)
+            size -= len(response)
 
     def disconnect(self):
         if self.is_connected:

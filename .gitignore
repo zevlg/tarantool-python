@@ -7,3 +7,5 @@
 *.snap
 sophia
 *.egg-info
+
+/var_*

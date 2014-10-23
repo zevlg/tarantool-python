@@ -4,7 +4,7 @@
 import struct
 import sys
 
-from tarantool.const import (
+from tarantool.lts.const import (
     REQUEST_TYPE_INSERT,
     REQUEST_TYPE_SELECT,
     REQUEST_TYPE_UPDATE,
@@ -14,7 +14,7 @@ from tarantool.const import (
     struct_LLL,
     struct_Q
 )
-from tarantool.error import DatabaseError
+from tarantool.lts.error import DatabaseError
 
 
 if sys.version_info < (2, 6):

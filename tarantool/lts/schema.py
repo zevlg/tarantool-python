@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=C0301,W0105,W0401,W0614
 '''
-This module provides :class:`~tarantool.schema.Schema` class.
+This module provides :class:`~tarantool.lts.schema.Schema` class.
 It is a Tarantool schema description.
 '''
 
@@ -11,7 +11,7 @@ NUM = 1
 NUM64 = 2
 STR = 3
 
-from tarantool.const import (
+from tarantool.lts.const import (
     struct_L,
     struct_Q
 )
@@ -30,7 +30,7 @@ class Schema(object):
         Create Schema instance.
 
         :param connection: Object representing connection to the server
-        :type connection: :class:`~tarantool.connection.Connection` instance
+        :type connection: :class:`~tarantool.lts.connection.Connection` instance
         :param schema: schema description
         :type schema: dict
 
@@ -40,14 +40,14 @@ class Schema(object):
             0: { # Space description
                 'name': 'users', # Space name
                 # Type that used to decode fields that are not listed below
-                'default_type': tarantool.STR,
+                'default_type': tarantool.lts.STR,
                 'fields': {
-                    0: ('user_id', tarantool.NUM), # (field name, field type)
-                    1: ('num64field', tarantool.NUM64),
-                    2: ('strfield', tarantool.STR),
+                    0: ('user_id', tarantool.lts.NUM), # (field name, field type)
+                    1: ('num64field', tarantool.lts.NUM64),
+                    2: ('strfield', tarantool.lts.STR),
                     # Alternative syntax
-                    #2: { 'name': 'strfield', 'type': tarantool.STR },
-                    #2: tarantool.STR # Alternative syntax
+                    #2: { 'name': 'strfield', 'type': tarantool.lts.STR },
+                    #2: tarantool.lts.STR # Alternative syntax
                 },
                 'indexes': {
                     0: ('pk', [0]), # (name, [field_no])
@@ -321,7 +321,7 @@ class Schema(object):
         :param space_no: space number
         :type space_no: None or int
         :param field_defs: field definitions used for types conversion,
-               e.g. [('field0', tarantool.NUM), ('field1', tarantool.STR)]
+               e.g. [('field0', tarantool.lts.NUM), ('field1', tarantool.lts.STR)]
         :type field_defs: None or  [(name, type) or None]
         :param default_type: None a default type used for result conversion,
             as defined in ``schema[space_no]['default_type']``
@@ -370,7 +370,7 @@ class Schema(object):
         :param space_no: space number
         :type space_no: None or int
         :param field_defs: field definitions used for types conversion,
-               e.g. [('field0', tarantool.NUM), ('field1', tarantool.STR)]
+               e.g. [('field0', tarantool.lts.NUM), ('field1', tarantool.lts.STR)]
         :type field_defs: None or  [(name, type) or None]
         :param default_type: None a default type used for result conversion,
             as defined in ``schema[space_no]['default_type']``

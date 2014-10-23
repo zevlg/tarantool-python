@@ -15,8 +15,8 @@ try:
 except ImportError:
     from ctypes import c_longlong as c_ssize_t
 
-from tarantool.response import Response
-from tarantool.request import (
+from tarantool.lts.response import Response
+from tarantool.lts.request import (
     Request,
     RequestCall,
     RequestDelete,
@@ -25,8 +25,8 @@ from tarantool.request import (
     RequestSelect,
     RequestUpdate)
 
-from tarantool.space import Space
-from tarantool.const import (
+from tarantool.lts.space import Space
+from tarantool.lts.const import (
     struct_L,
     SOCKET_TIMEOUT,
     RECONNECT_MAX_ATTEMPTS,
@@ -36,14 +36,14 @@ from tarantool.const import (
     BOX_ADD,
     BOX_REPLACE,
     REQUEST_TYPE_PING)
-from tarantool.error import (
+from tarantool.lts.error import (
     NetworkError,
     DatabaseError,
     warn,
     RetryWarning,
     NetworkWarning)
-from tarantool.schema import Schema
-from tarantool.utils import check_key
+from tarantool.lts.schema import Schema
+from tarantool.lts.utils import check_key
 
 
 class Connection(object):
@@ -77,8 +77,8 @@ class Connection(object):
         creates network connection.
                              if False than you have to call connect() manualy.
         :param schema: Data schema (see Developer guide
-            and :class:`~tarantool.schema.Schema`)
-        :type schema: :class:`~tarantool.schema.Schema` or dict
+            and :class:`~tarantool.lts.schema.Schema`)
+        :type schema: :class:`~tarantool.lts.schema.Schema` or dict
         '''
         self.host = host
         self.port = port
@@ -240,7 +240,7 @@ class Connection(object):
             the inserted tuple back
         :type return_tuple: bool
         :param field_defs: field definitions used for types conversion,
-               e.g. [('field0', tarantool.NUM), ('field1', tarantool.STR)]
+               e.g. [('field0', tarantool.lts.NUM), ('field1', tarantool.lts.STR)]
         :type field_defs: None or  [(name, type) or None]
         :param default_type: None a default type used for result conversion,
             as defined in ``schema[space_no]['default_type']``

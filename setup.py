@@ -53,13 +53,13 @@ except ImportError:
 
 setup(
     name = "tarantool",
-    packages = ["tarantool"],
+    packages = ["tarantool", "tarantool.lts"],
     package_dir = {"tarantool": os.path.join("tarantool")},
     version = __version__,
     platforms = ["all"],
-    author = "Konstantin Cherkasoff",
-    author_email = "k.cherkasoff@gmail.com",
-    url = "https://github.com/coxx/tarantool-python",
+    author = "Eugine Blikh",
+    author_email = "bigbes@gmail.com",
+    url = "https://github.com/tarantool/tarantool-python",
     license = "BSD",
     description = "Python client library for Tarantool Database",
     long_description = open("README.rst").read(),

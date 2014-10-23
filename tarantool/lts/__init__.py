@@ -1,23 +1,21 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=C0301,W0105,W0401,W0614
 
-__version__ = "0.3.5"
-
-from tarantool.connection import Connection
-from tarantool.const import (
+from tarantool.lts.connection import Connection
+from tarantool.lts.const import (
     SOCKET_TIMEOUT,
     RECONNECT_MAX_ATTEMPTS,
     RECONNECT_DELAY
 )
 
-from tarantool.schema import (
+from tarantool.lts.schema import (
     Schema,
     RAW,
     STR,
     NUM,
     NUM64
 )
-from tarantool.error import (
+from tarantool.lts.error import (
     Error,
     DatabaseError,
     NetworkError,
@@ -33,11 +31,11 @@ def connect(host="localhost", port=33013, schema=None, return_tuple=True):
     :param str host: Server hostname or IP-address
     :param int port: Server port
     :param schema: Data schema (see Developer guide
-        and :class:`~tarantool.schema.Schema`)
-    :type schema: :class:`~tarantool.schema.Schema` or dict
+        and :class:`~tarantool.lts.schema.Schema`)
+    :type schema: :class:`~tarantool.lts.schema.Schema` or dict
     :param bool return_tuple: Return tuple by default, in update/delete/insert operations.
 
-    :rtype: :class:`~tarantool.connection.Connection`
+    :rtype: :class:`~tarantool.lts.connection.Connection`
     :raise: `NetworkError`
     '''
 

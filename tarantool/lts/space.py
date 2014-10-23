@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 # pylint: disable=C0301,W0105,W0401,W0614
 '''
-This module provides :class:`~tarantool.space.Space` class.
+This module provides :class:`~tarantool.lts.space.Space` class.
 It is an object-oriented wrapper for request over Tarantool space.
 '''
-from tarantool.const import (
+from tarantool.lts.const import (
     BOX_RETURN_TUPLE,
     BOX_ADD,
     BOX_REPLACE)
@@ -22,7 +22,7 @@ class Space(object):
         Create Space instance.
 
         :param connection: Object representing connection to the server
-        :type connection: :class:`~tarantool.connection.Connection` instance
+        :type connection: :class:`~tarantool.lts.connection.Connection` instance
         :param int space_no: space no or name to insert a record
         :type space_name: int or str
         '''
@@ -42,7 +42,7 @@ class Space(object):
             to return the inserted tuple back
         :type return_tuple: bool
 
-        :rtype: :class:`~tarantool.response.Response` instance
+        :rtype: :class:`~tarantool.lts.response.Response` instance
         '''
         if return_tuple is None:
             return_tuple = self.connection.return_tuple
@@ -62,7 +62,7 @@ class Space(object):
             to return the inserted tuple back
         :type return_tuple: bool
 
-        :rtype: :class:`~tarantool.response.Response` instance
+        :rtype: :class:`~tarantool.lts.response.Response` instance
         '''
         if return_tuple is None:
             return_tuple = self.connection.return_tuple
@@ -81,7 +81,7 @@ class Space(object):
             to return the inserted tuple back
         :type return_tuple: bool
 
-        :rtype: :class:`~tarantool.response.Response` instance
+        :rtype: :class:`~tarantool.lts.response.Response` instance
         '''
         if return_tuple is None:
             return_tuple = self.connection.return_tuple
@@ -98,7 +98,7 @@ class Space(object):
             the inserted tuple back
         :type return_tuple: bool
 
-        :rtype: :class:`~tarantool.response.Response` instance
+        :rtype: :class:`~tarantool.lts.response.Response` instance
         '''
         if return_tuple is None:
             return_tuple = self.connection.return_tuple
@@ -114,7 +114,7 @@ class Space(object):
             the inserted tuple back
         :type return_tuple: bool
 
-        :rtype: :class:`~tarantool.response.Response` instance
+        :rtype: :class:`~tarantool.lts.response.Response` instance
         '''
         if return_tuple is None:
             return_tuple = self.connection.return_tuple
@@ -160,7 +160,7 @@ class Space(object):
             the inserted tuple back
         :type return_tuple: bool
         :param field_defs: field definitions used for types conversion,
-               e.g. [('field0', tarantool.NUM), ('field1', tarantool.STR)]
+               e.g. [('field0', tarantool.lts.NUM), ('field1', tarantool.lts.STR)]
         :type field_defs: None or  [(name, type) or None]
         :param default_type: None a default type used for result conversion,
             as defined in ``schema[space_no]['default_type']``

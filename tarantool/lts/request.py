@@ -6,7 +6,7 @@ Request types definitions
 
 import struct
 
-from tarantool.const import (
+from tarantool.lts.const import (
     struct_B,
     struct_BB,
     struct_BBB,
