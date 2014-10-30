@@ -2,15 +2,15 @@
 import yaml
 import unittest
 import tarantool
-from lib.tarantool_server import TarantoolServer
+from lib.tarantool16 import TarantoolServer
 
-class Request(unittest.TestCase):
+class Test_Request16(unittest.TestCase):
     @classmethod
     def setUpClass(self):
-        print ' DML '.center(70, '=')
+        print ' DML 1.6 '.center(70, '=')
         print '-' * 70
         self.srv = TarantoolServer()
-        self.srv.script = 'tests/suites/box.lua'
+        self.srv.script = 'tests/share/box.lua'
         self.srv.start()
         self.con = tarantool.Connection('localhost', self.srv.args['primary'])
         self.adm = self.srv.admin

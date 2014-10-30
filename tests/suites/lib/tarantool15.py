@@ -1,4 +1,5 @@
 import os
+import glob
 import errno
 import shlex
 import random
@@ -29,9 +30,8 @@ def find_port(port = None):
     return find_port(3300)
 
 
-class RunnerException(object):
+class RunnerException(Exception):
     pass
-
 
 class TarantoolAdmin(object):
     def __init__(self, host, port):
@@ -44,7 +44,6 @@ class TarantoolAdmin(object):
         self.socket = socket.create_connection((self.host, self.port))
         self.socket.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         self.is_connected = True
-        self.recv_exactly(128)
 
     def recv_exactly(self, size):
         if not self.is_connected:
@@ -110,11 +109,13 @@ class TarantoolAdmin(object):
 
         return yaml.load(res)
 
+
 class TarantoolServer(object):
     default_tarantool = {
-            "bin":           "tarantool",
+            "bin":       "tarantool_box",
             "logfile":   "tarantool.log",
-            "init":           "init.lua"}
+            "init":           "init.lua",
+            "config":    "tarantool.cfg"}
 
     default_cfg = {
             "custom_proc_title": "\"tarantool-python testing\"",
@@ -145,21 +146,29 @@ class TarantoolServer(object):
     @script.setter
     def script(self, val):
         if val is None:
-            if hasattr(self, '_script'):
-                delattr(self, '_script')
+            if hasattr(self, '_script'): delattr(self, '_script')
             return
         self._script = os.path.abspath(val)
 
     @property
+    def config(self):
+        if not hasattr(self, '_config'): self._config = None
+        return self._config
+    @config.setter
+    def config(self, val):
+        if val is None:
+            if hasattr(self, '_config'): delattr(self, '_config')
+            return
+        self._config = os.path.abspath(val)
+
+    @property
     def binary(self):
-        if not hasattr(self, '_binary'):
-            self._binary = self.find_exe()
+        if not hasattr(self, '_binary'): self._binary = self.find_exe()
         return self._binary
 
     @property
     def _admin(self):
-        if not hasattr(self, 'admin'):
-            self.admin = None
+        if not hasattr(self, 'admin'): self.admin = None
         return self.admin
     @_admin.setter
     def _admin(self, port):
@@ -187,9 +196,6 @@ class TarantoolServer(object):
     def __init__(self):
         os.popen('ulimit -c unlimited')
         self.args = {}
-        self.args['primary'] = find_port()
-        self.args['admin'] = find_port(self.args['primary'] + 1)
-        self._admin = self.args['admin']
         self.vardir = tempfile.mkdtemp(prefix='var_', dir=os.getcwd())
         self.find_exe()
 
@@ -201,14 +207,22 @@ class TarantoolServer(object):
             exe = os.path.join(_dir, self.default_tarantool["bin"])
             if os.access(exe, os.X_OK):
                 return os.path.abspath(exe)
-        raise RuntimeError("Can't find server executable in " + path)
+        raise RuntimeError("Can't find server executable in " + os.environ["PATH"])
 
     def generate_configuration(self):
-        os.putenv("PRIMARY_PORT", str(self.args['primary']))
-        os.putenv("ADMIN_PORT", str(self.args['admin']))
+        lines = open(self.config).read().split('\n')
+        for line in lines:
+            if line.find('primary_port') != -1:
+                self.args['primary'] = (line.split('=')[1].strip())
+            if line.find('admin_port') != -1:
+                self.args['admin'] = (line.split('=')[1].strip())
+        self._admin = self.args['admin']
 
     def prepare_args(self):
-        return shlex.split(self.binary if not self.script else self.script_dst)
+        cmd  = "%s " % self.binary
+        if self.config:
+            cmd += "-c %s " % self.config
+        return shlex.split(cmd)
 
     def wait_until_started(self):
         """ Wait until server is started.
@@ -221,15 +235,14 @@ class TarantoolServer(object):
         while True:
             try:
                 temp = TarantoolAdmin('localhost', self.args['admin'])
-                ans = temp('box.info.status')[0]
-                if ans in ('running', 'primary', 'hot_standby', 'orphan') or ans.startswith('replica'):
+                ans = temp('lua box.info.status')[0]
+                if ans in ('primary'):
                     return True
-                else:
-                    raise Exception("Strange output for `box.info.status`: %s" % (ans))
             except socket.error as e:
                 if e.errno == errno.ECONNREFUSED:
                     time.sleep(0.1)
-                    continue
+                    if self.process.poll() is None:
+                        continue
                 raise
 
     def start(self):
@@ -247,6 +260,11 @@ class TarantoolServer(object):
             shutil.copy(self.script, self.script_dst)
             os.chmod(self.script_dst, 0777)
         args = self.prepare_args()
+        if not glob.glob(os.path.join(self.vardir, '*.snap')):
+            subprocess.Popen(args + ['--init-storage'],
+                    cwd = self.vardir,
+                    stdout=self.log_des,
+                    stderr=self.log_des).wait()
         self.process = subprocess.Popen(args,
                 cwd = self.vardir,
                 stdout=self.log_des,
@@ -254,17 +272,18 @@ class TarantoolServer(object):
         self.wait_until_started()
 
     def stop(self):
-        self.process.terminate()
-        self.process.wait()
+        if self.process.poll() is not None:
+            self.process.terminate()
+            self.process.wait()
 
     def restart(self):
         self.stop()
         self.start()
 
     def clean(self):
-        shutil.rmtree(self.vardir)
+        if os.path.exists(self.vardir):
+            shutil.rmtree(self.vardir)
 
     def __del__(self):
         self.stop()
         self.clean()
-
