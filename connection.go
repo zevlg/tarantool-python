@@ -2,7 +2,6 @@ package tarantool
 
 import (
 	"net"
-	"fmt"
 	"github.com/vmihailenco/msgpack"
 	"sync/atomic"
 	"bytes"
@@ -16,6 +15,8 @@ type Connection struct {
 	Greeting   *Greeting
 	requests   map[uint32]chan *Response
 	packets    chan []byte
+	opts       Opts
+	state      uint
 }
 
 type Greeting struct {
@@ -23,38 +24,62 @@ type Greeting struct {
 	auth    string
 }
 
-func Connect(addr string) (conn *Connection, err error) {
-	fmt.Printf("Connecting to %s ...\n", addr)
+type Opts {
+	pingInterval int // seconds
+	timeout int      // microseconds
+	reconnect bool
+}
+
+const (
+	stConnecting = iota
+	stEstablished
+	stBroken
+)
+
+func Connect(addr string, opts Opts) (conn *Connection, err error) {
 	connection, err := net.Dial("tcp", addr)
 	if err != nil {
 		return
 	}
 	connection.(*net.TCPConn).SetNoDelay(true)
 
-	fmt.Println("Connected ...")
-
-	conn = &Connection{ connection, &sync.Mutex{}, 0, &Greeting{}, make(map[uint32]chan *Response), make(chan []byte) }
+	conn = &Connection{
+		connection: connection,
+		mutex: &sync.Mutex{},
+		requestId: 0,
+		greeting: &Greeting{},
+		requests: make(map[uint32]chan *Response),
+		packets: make(chan []byte),
+		opts: opts,
+		state: stConnecting
+	}
 	err = conn.handShake()
 
 	go conn.writer()
 	go conn.reader()
+	//go conn.pinger()
 
 	return
 }
 
+func (conn *Connection) Close() (err error) {
+	// TODO close all pending responses
+	return conn.connection.Close()
+}
+
+func (conn *Connection) getConnection() (connection net.Conn, err error) {
+	return conn.connection
+}
+
 func (conn *Connection) handShake() (err error) {
-	fmt.Printf("Greeting ... ")
 	greeting := make([]byte, 128)
 	_, err = conn.connection.Read(greeting)
 	if err != nil {
-		fmt.Println("Error")
 		return
 	}
 	conn.Greeting.version = bytes.NewBuffer(greeting[:64]).String()
 	conn.Greeting.auth = bytes.NewBuffer(greeting[64:]).String()
 
-	fmt.Println("Success")
-	fmt.Println("Version:", conn.Greeting.version)
 	return
 }
 
@@ -89,6 +114,16 @@ func (conn *Connection) reader() {
 		delete(conn.requests, resp.RequestId)
 		conn.mutex.Unlock()
 		respChan <- resp
+	}
+}
+
+func (conn *Connection) pinger() {
+	for {
+		resp, err := conn.Ping()
+		if err != nil {
+			conn.Close()
+			// TODO: reconnect if network
+		}
 	}
 }
 
