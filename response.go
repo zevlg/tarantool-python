@@ -30,5 +30,12 @@ func NewResponse(bytes []byte) (resp *Response) {
 		resp.Error = body[KeyError].(string)
 	}
 
-	return 
+	return
+}
+
+func NewNetErrResponse(err error) (resp *Response) {
+	resp = &Response{}
+	resp.Code = NetErrorCode
+	resp.Error = err
+	return
 }

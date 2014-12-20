@@ -9,6 +9,7 @@ import (
 )
 
 type Connection struct {
+	addr       string
 	connection net.Conn
 	mutex      *sync.Mutex
 	requestId  uint32
@@ -37,62 +38,81 @@ const (
 )
 
 func Connect(addr string, opts Opts) (conn *Connection, err error) {
-	connection, err := net.Dial("tcp", addr)
-	if err != nil {
-		return
-	}
-	connection.(*net.TCPConn).SetNoDelay(true)
 
 	conn = &Connection{
-		connection: connection,
+		addr: addr,
+		connection: nil,
 		mutex: &sync.Mutex{},
 		requestId: 0,
 		greeting: &Greeting{},
 		requests: make(map[uint32]chan *Response),
 		packets: make(chan []byte),
 		opts: opts,
-		state: stConnecting
 	}
-	err = conn.handShake()
+
+	err = co.dial()
+	if err != nil {
+		return
+	}
 
 	go conn.writer()
 	go conn.reader()
-	//go conn.pinger()
 
 	return
 }
 
-func (conn *Connection) Close() (err error) {
-	// TODO close all pending responses
-	return conn.connection.Close()
-}
-
-func (conn *Connection) getConnection() (connection net.Conn, err error) {
-	return conn.connection
-}
-
-func (conn *Connection) handShake() (err error) {
+func (conn *Connection) dial() (err error) {
+	connection, err := net.Dial("tcp", conn.addr)
+	if err != nil {
+		return
+	}
+	connection.(*net.TCPConn).SetNoDelay(true)
+	conn.connection = connection
 	greeting := make([]byte, 128)
+	// TODO: read all
 	_, err = conn.connection.Read(greeting)
 	if err != nil {
 		return
 	}
 	conn.Greeting.version = bytes.NewBuffer(greeting[:64]).String()
 	conn.Greeting.auth = bytes.NewBuffer(greeting[64:]).String()
-
 	return
 }
 
-func (conn *Connection) writer(){
+func (conn *Connection) getConnection() (connection net.Conn, err error) {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+	if conn.connection == nil {
+		err = conn.dial()
+	}
+	return conn.connection, err
+}
+
+func (conn *Connection) closeConnection(err error) {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+	conn.connection.Close()
+	conn.connection = nil
+	for requestId, respChan := range(conn.requests) {
+		respChan <- NewNetErrResponse(err)
+		delete(conn.requests, requestId)
+		close(respChan)
+	}
+}
+
+func (conn *Connection) writer() {
 	var (
 		err error
 		packet []byte
+		connection net.Conn
 	)
 	for {
 		packet = <- conn.packets
-		err = conn.write(packet)
+		connetion = conn.getConnection()
+		err = write(connection, packet)
 		if err != nil {
-			panic(err)
+			conn.closeConnection(err)
+			continue
 		}
 	}
 }
@@ -101,64 +121,63 @@ func (conn *Connection) reader() {
 	var (
 		err error
 		resp_bytes []byte
+		connection net.Conn
 	)
 	for {
-		resp_bytes, err = conn.read()
+		connection = conn.getConnection()
+		resp_bytes, err = read(connection)
 		if err != nil {
-			panic(err)
+			conn.closeConnection(err)
+			continue
 		}
-
 		resp := NewResponse(resp_bytes)
 		respChan := conn.requests[resp.RequestId]
 		conn.mutex.Lock()
 		delete(conn.requests, resp.RequestId)
 		conn.mutex.Unlock()
-		respChan <- resp
-	}
-}
-
-func (conn *Connection) pinger() {
-	for {
-		resp, err := conn.Ping()
-		if err != nil {
-			conn.Close()
-			// TODO: reconnect if network
+		if respChan != nil {
+			respChan <- resp
+		} else {
+			log.Printf("tarantool: unexpected requestId (%d) in response", uint(resp.RequestId))
 		}
 	}
 }
 
-func (conn *Connection) write(data []byte) (err error) {
-	l, err := conn.connection.Write(data)
+func write(connection net.Conn, data []byte) (err error) {
+	l, err := connection.Write(data)
+	if err != nil {
+		return
+	}
 	if l != len(data) {
 		panic("Wrong length writed")
 	}
 	return
 }
 
-func (conn *Connection) read() (response []byte, err error){
+func read(connection net.Conn) (response []byte, err error){
 	var length_uint uint32
 	var l, tl int
-	length := make([]byte, PacketLengthBytes)	
+	length := make([]byte, PacketLengthBytes)
 
 	tl = 0
 	for tl < int(PacketLengthBytes) {
-		l, err = conn.connection.Read(length[tl:])
+		l, err = connection.Read(length[tl:])
 		tl += l
 		if err != nil {
 			return
 		}
 	}
 
-    err = msgpack.Unmarshal(length, &length_uint)
+	err = msgpack.Unmarshal(length, &length_uint)
 	if err != nil {
 		return
 	}
 
 	response = make([]byte, length_uint)
-	if(length_uint > 0){
+	if length_uint > 0 {
 		tl = 0
 		for tl < int(length_uint) {
-			l, err = conn.connection.Read(response[tl:])
+			l, err = connection.Read(response[tl:])
 			tl += l
 			if err != nil {
 				return
@@ -170,6 +189,12 @@ func (conn *Connection) read() (response []byte, err error){
 }
 
 func (conn *Connection) nextRequestId() (requestId uint32) {
-	conn.requestId = atomic.AddUint32(&conn.requestId, 1)
-	return conn.requestId
+	return atomic.AddUint32(&conn.requestId, 1)
 }
+
+func (conn *Connection) Close() (err error) {
+	// TODO close all pending responses
+	conn.closeConnection(errors.New("connection closed"))
+	return conn.connection.Close()
+}
+

@@ -38,5 +38,7 @@ const (
 
 	OkCode            = uint32(0)
 
+	NetErrCode        = uint32(0xfffffff1)  // fake code to wrap network problems into response
+
 	PacketLengthBytes = 5
 )
