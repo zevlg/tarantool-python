@@ -6,6 +6,9 @@ import (
 	"sync/atomic"
 	"bytes"
 	"sync"
+	"time"
+	"log"
+	"errors"
 )
 
 type Connection struct {
@@ -17,7 +20,7 @@ type Connection struct {
 	requests   map[uint32]chan *Response
 	packets    chan []byte
 	opts       Opts
-	state      uint
+	closed     bool
 }
 
 type Greeting struct {
@@ -25,17 +28,11 @@ type Greeting struct {
 	auth    string
 }
 
-type Opts {
-	pingInterval int // seconds
-	timeout int      // microseconds
-	reconnect bool
+type Opts struct {
+	Timeout      time.Duration // milliseconds
+	Reconnect    time.Duration // milliseconds
 }
 
-const (
-	stConnecting = iota
-	stEstablished
-	stBroken
-)
 
 func Connect(addr string, opts Opts) (conn *Connection, err error) {
 
@@ -44,20 +41,25 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 		connection: nil,
 		mutex: &sync.Mutex{},
 		requestId: 0,
-		greeting: &Greeting{},
+		Greeting: &Greeting{},
 		requests: make(map[uint32]chan *Response),
 		packets: make(chan []byte),
 		opts: opts,
 	}
 
-	err = co.dial()
+	err = conn.dial()
 	if err != nil {
 		return
 	}
 
 	go conn.writer()
 	go conn.reader()
+	return
+}
 
+func (conn *Connection) Close() (err error) {
+	conn.closed = true;
+	err = conn.closeConnection(errors.New("client closed connection"))
 	return
 }
 
@@ -79,37 +81,49 @@ func (conn *Connection) dial() (err error) {
 	return
 }
 
-func (conn *Connection) getConnection() (connection net.Conn, err error) {
+func (conn *Connection) getConnection() (connection net.Conn) {
+	conn.mutex.Lock()
+	defer conn.mutex.Unlock()
+	for conn.connection == nil {
+		if conn.closed {
+			return nil
+		}
+		err := conn.dial()
+		if err == nil {
+			break
+		} else if conn.opts.Reconnect > 0 {
+			time.Sleep(conn.opts.Reconnect)
+		} else {
+			return nil
+		}
+	}
+	return conn.connection
+}
+
+func (conn *Connection) closeConnection(neterr error) (err error) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 	if conn.connection == nil {
-		err = conn.dial()
+		return
 	}
-	return conn.connection, err
-}
-
-func (conn *Connection) closeConnection(err error) {
-	conn.mutex.Lock()
-	defer conn.mutex.Unlock()
-	conn.connection.Close()
+	err = conn.connection.Close()
 	conn.connection = nil
 	for requestId, respChan := range(conn.requests) {
-		respChan <- NewNetErrResponse(err)
+		respChan <- FakeResponse(NetErrCode, neterr)
 		delete(conn.requests, requestId)
 		close(respChan)
 	}
+	return
 }
 
 func (conn *Connection) writer() {
-	var (
-		err error
-		packet []byte
-		connection net.Conn
-	)
 	for {
-		packet = <- conn.packets
-		connetion = conn.getConnection()
-		err = write(connection, packet)
+		packet := <- conn.packets
+		connection := conn.getConnection()
+		if connection == nil {
+			return
+		}
+		err := write(connection, packet)
 		if err != nil {
 			conn.closeConnection(err)
 			continue
@@ -118,14 +132,12 @@ func (conn *Connection) writer() {
 }
 
 func (conn *Connection) reader() {
-	var (
-		err error
-		resp_bytes []byte
-		connection net.Conn
-	)
 	for {
-		connection = conn.getConnection()
-		resp_bytes, err = read(connection)
+		connection := conn.getConnection()
+		if connection == nil {
+			return
+		}
+		resp_bytes, err := read(connection)
 		if err != nil {
 			conn.closeConnection(err)
 			continue
@@ -191,10 +203,3 @@ func read(connection net.Conn) (response []byte, err error){
 func (conn *Connection) nextRequestId() (requestId uint32) {
 	return atomic.AddUint32(&conn.requestId, 1)
 }
-
-func (conn *Connection) Close() (err error) {
-	// TODO close all pending responses
-	conn.closeConnection(errors.New("connection closed"))
-	return conn.connection.Close()
-}
-

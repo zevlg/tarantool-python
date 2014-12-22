@@ -37,8 +37,8 @@ const (
 	IterBitsAllNotSet = uint32(9) // all bits are not set
 
 	OkCode            = uint32(0)
-
 	NetErrCode        = uint32(0xfffffff1)  // fake code to wrap network problems into response
+	TimeoutErrCode    = uint32(0xfffffff2)  // fake code to wrap timeout error into repsonse
 
 	PacketLengthBytes = 5
 )

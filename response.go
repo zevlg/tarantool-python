@@ -1,6 +1,7 @@
 package tarantool
 
 import(
+	"fmt"
 	"github.com/vmihailenco/msgpack"
 )
 
@@ -33,9 +34,17 @@ func NewResponse(bytes []byte) (resp *Response) {
 	return
 }
 
-func NewNetErrResponse(err error) (resp *Response) {
+func FakeResponse(code uint32, err error) (resp *Response) {
 	resp = &Response{}
-	resp.Code = NetErrorCode
-	resp.Error = err
+	resp.Code = code
+	resp.Error = fmt.Sprintf("%s",err)
+	return
+}
+
+func (resp *Response) GoString (str string) {
+	str = fmt.Sprintf("<%d %d '%s'>\n", resp.RequestId, resp.Code, resp.Error)
+	for t := range(resp.Data) {
+		str += fmt.Sprintf("%v\n", t)
+	}
 	return
 }

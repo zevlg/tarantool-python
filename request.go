@@ -3,6 +3,7 @@ package tarantool
 import(
 	"github.com/vmihailenco/msgpack"
 	"errors"
+	"time"
 )
 
 type Request struct {
@@ -109,6 +110,10 @@ func (conn *Connection) Auth(key, tuple []interface{}) (resp *Response, err erro
 
 
 func (req *Request) perform() (resp *Response, err error) {
+	if req.conn.closed {
+		return nil, errors.New("using closed connection")
+	}
+
 	packet, err := req.pack()
 	if err != nil {
 		return
@@ -121,7 +126,20 @@ func (req *Request) perform() (resp *Response, err error) {
 	req.conn.mutex.Unlock()
 
 	req.conn.packets <- (packet)
-	resp = <-responseChan
+
+	if req.conn.opts.Timeout > 0 {
+		select {
+			case resp = <-responseChan:
+				break
+			case <-time.After(req.conn.opts.Timeout):
+				req.conn.mutex.Lock()
+				delete(req.conn.requests, req.requestId)
+				req.conn.mutex.Unlock()
+				resp = FakeResponse(TimeoutErrCode, errors.New("client timeout"))
+		}
+	} else {
+		resp = <-responseChan
+	}
 
 	if resp.Error != "" {
 		err = errors.New(resp.Error)
