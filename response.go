@@ -12,7 +12,7 @@ type Response struct {
 	Data      []interface{}
 }
 
-type ResponseAndError struct {
+type responseAndError struct {
 	resp *Response
 	err  error
 }
