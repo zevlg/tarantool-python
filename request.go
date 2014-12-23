@@ -129,19 +129,24 @@ func (req *Request) perform() (resp *Response, err error) {
 
 	if req.conn.opts.Timeout > 0 {
 		select {
-			case resp = <-responseChan:
+			case respAndErr := <-responseChan:
+				resp = respAndErr.resp
+				err = respAndErr.err
 				break
 			case <-time.After(req.conn.opts.Timeout):
 				req.conn.mutex.Lock()
 				delete(req.conn.requests, req.requestId)
 				req.conn.mutex.Unlock()
-				resp = FakeResponse(TimeoutErrCode, errors.New("client timeout"))
+				resp = nil
+				err = errors.New("client timeout")
 		}
 	} else {
-		resp = <-responseChan
+		respAndError := <-responseChan
+		resp = respAndError.resp
+		err = respAndError.err
 	}
 
-	if resp.Error != "" {
+	if resp != nil && resp.Error != "" {
 		err = errors.New(resp.Error)
 	}
 	return

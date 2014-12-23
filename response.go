@@ -12,6 +12,11 @@ type Response struct {
 	Data      []interface{}
 }
 
+type ResponseAndError struct {
+	resp *Response
+	err  error
+}
+
 func NewResponse(bytes []byte) (resp *Response) {
 	var header, body map[int32]interface{}
 	resp = &Response{}
@@ -31,13 +36,6 @@ func NewResponse(bytes []byte) (resp *Response) {
 		resp.Error = body[KeyError].(string)
 	}
 
-	return
-}
-
-func FakeResponse(code uint32, err error) (resp *Response) {
-	resp = &Response{}
-	resp.Code = code
-	resp.Error = fmt.Sprintf("%s",err)
 	return
 }
 

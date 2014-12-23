@@ -17,7 +17,7 @@ type Connection struct {
 	mutex      *sync.Mutex
 	requestId  uint32
 	Greeting   *Greeting
-	requests   map[uint32]chan *Response
+	requests   map[uint32]chan *ResponseAndError
 	packets    chan []byte
 	opts       Opts
 	closed     bool
@@ -42,7 +42,7 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 		mutex: &sync.Mutex{},
 		requestId: 0,
 		Greeting: &Greeting{},
-		requests: make(map[uint32]chan *Response),
+		requests: make(map[uint32]chan *ResponseAndError),
 		packets: make(chan []byte),
 		opts: opts,
 	}
@@ -109,7 +109,7 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	err = conn.connection.Close()
 	conn.connection = nil
 	for requestId, respChan := range(conn.requests) {
-		respChan <- FakeResponse(NetErrCode, neterr)
+		respChan <- &ResponseAndError{nil, neterr}
 		delete(conn.requests, requestId)
 		close(respChan)
 	}
@@ -143,12 +143,12 @@ func (conn *Connection) reader() {
 			continue
 		}
 		resp := NewResponse(resp_bytes)
-		respChan := conn.requests[resp.RequestId]
 		conn.mutex.Lock()
+		respChan := conn.requests[resp.RequestId]
 		delete(conn.requests, resp.RequestId)
 		conn.mutex.Unlock()
 		if respChan != nil {
-			respChan <- resp
+			respChan <- &ResponseAndError{resp, nil}
 		} else {
 			log.Printf("tarantool: unexpected requestId (%d) in response", uint(resp.RequestId))
 		}
