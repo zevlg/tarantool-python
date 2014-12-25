@@ -118,7 +118,7 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 
 func (conn *Connection) writer() {
 	for {
-		packet := <- conn.packets
+		packet := <-conn.packets
 		connection := conn.getConnection()
 		if connection == nil {
 			return
