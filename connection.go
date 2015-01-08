@@ -82,6 +82,9 @@ func (conn *Connection) dial() (err error) {
 }
 
 func (conn *Connection) getConnection() (connection net.Conn) {
+	if c := conn.connection; c != nil {
+		return c
+	}
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 	for conn.connection == nil {
