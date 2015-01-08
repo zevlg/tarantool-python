@@ -119,7 +119,7 @@ func (req *Request) perform() (resp *Response, err error) {
 		return
 	}
 
-	responseChan := make(chan *responseAndError)
+	responseChan := make(chan *responseAndError, 1)
 
 	req.conn.mutex.Lock()
 	req.conn.requests[req.requestId] = responseChan
