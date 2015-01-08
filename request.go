@@ -128,12 +128,14 @@ func (req *Request) perform() (resp *Response, err error) {
 	req.conn.packets <- (packet)
 
 	if req.conn.opts.Timeout > 0 {
+		timer := time.NewTimer(req.conn.opts.Timeout)
 		select {
 			case respAndErr := <-responseChan:
+				timer.Stop()
 				resp = respAndErr.resp
 				err = respAndErr.err
 				break
-			case <-time.After(req.conn.opts.Timeout):
+			case <-timer.C:
 				req.conn.mutex.Lock()
 				delete(req.conn.requests, req.requestId)
 				req.conn.mutex.Unlock()
