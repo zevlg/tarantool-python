@@ -2,7 +2,7 @@ package tarantool
 
 import (
 	"net"
-	"github.com/vmihailenco/msgpack"
+	"gopkg.in/vmihailenco/msgpack.v2"
 	"sync/atomic"
 	"bytes"
 	"sync"

@@ -1,7 +1,7 @@
 package tarantool
 
 import(
-	"github.com/vmihailenco/msgpack"
+	"gopkg.in/vmihailenco/msgpack.v2"
 	"errors"
 	"time"
 )
