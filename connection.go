@@ -135,12 +135,13 @@ func (conn *Connection) writer() {
 }
 
 func (conn *Connection) reader() {
+	var length [PacketLengthBytes]byte
 	for {
 		connection := conn.getConnection()
 		if connection == nil {
 			return
 		}
-		resp_bytes, err := read(connection)
+		resp_bytes, err := read(length[:], connection)
 		if err != nil {
 			conn.closeConnection(err)
 			continue
@@ -169,10 +170,9 @@ func write(connection net.Conn, data []byte) (err error) {
 	return
 }
 
-func read(connection net.Conn) (response []byte, err error){
+func read(length []byte, connection net.Conn) (response []byte, err error){
 	var length_uint uint32
 	var l, tl int
-	length := make([]byte, PacketLengthBytes)
 
 	tl = 0
 	for tl < int(PacketLengthBytes) {
