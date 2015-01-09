@@ -2,7 +2,7 @@ package tarantool
 
 import (
 	"net"
-	"github.com/vmihailenco/msgpack"
+	"gopkg.in/vmihailenco/msgpack.v2"
 	"sync/atomic"
 	"bytes"
 	"sync"
@@ -17,7 +17,7 @@ type Connection struct {
 	mutex      *sync.Mutex
 	requestId  uint32
 	Greeting   *Greeting
-	requests   map[uint32]chan *responseAndError
+	requests   map[uint32]chan responseAndError
 	packets    chan []byte
 	opts       Opts
 	closed     bool
@@ -42,7 +42,7 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 		mutex: &sync.Mutex{},
 		requestId: 0,
 		Greeting: &Greeting{},
-		requests: make(map[uint32]chan *responseAndError),
+		requests: make(map[uint32]chan responseAndError),
 		packets: make(chan []byte),
 		opts: opts,
 	}
@@ -82,6 +82,9 @@ func (conn *Connection) dial() (err error) {
 }
 
 func (conn *Connection) getConnection() (connection net.Conn) {
+	if c := conn.connection; c != nil {
+		return c
+	}
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 	for conn.connection == nil {
@@ -109,7 +112,7 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	err = conn.connection.Close()
 	conn.connection = nil
 	for requestId, respChan := range(conn.requests) {
-		respChan <- &responseAndError{nil, neterr}
+		respChan <- responseAndError{nil, neterr}
 		delete(conn.requests, requestId)
 		close(respChan)
 	}
@@ -132,12 +135,13 @@ func (conn *Connection) writer() {
 }
 
 func (conn *Connection) reader() {
+	var length [PacketLengthBytes]byte
 	for {
 		connection := conn.getConnection()
 		if connection == nil {
 			return
 		}
-		resp_bytes, err := read(connection)
+		resp_bytes, err := read(length[:], connection)
 		if err != nil {
 			conn.closeConnection(err)
 			continue
@@ -148,7 +152,7 @@ func (conn *Connection) reader() {
 		delete(conn.requests, resp.RequestId)
 		conn.mutex.Unlock()
 		if respChan != nil {
-			respChan <- &responseAndError{resp, nil}
+			respChan <- responseAndError{resp, nil}
 		} else {
 			log.Printf("tarantool: unexpected requestId (%d) in response", uint(resp.RequestId))
 		}
@@ -166,10 +170,9 @@ func write(connection net.Conn, data []byte) (err error) {
 	return
 }
 
-func read(connection net.Conn) (response []byte, err error){
+func read(length []byte, connection net.Conn) (response []byte, err error){
 	var length_uint uint32
 	var l, tl int
-	length := make([]byte, PacketLengthBytes)
 
 	tl = 0
 	for tl < int(PacketLengthBytes) {

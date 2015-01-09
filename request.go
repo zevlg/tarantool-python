@@ -1,7 +1,7 @@
 package tarantool
 
 import(
-	"github.com/vmihailenco/msgpack"
+	"gopkg.in/vmihailenco/msgpack.v2"
 	"errors"
 	"time"
 )
@@ -119,7 +119,7 @@ func (req *Request) perform() (resp *Response, err error) {
 		return
 	}
 
-	responseChan := make(chan *responseAndError)
+	responseChan := make(chan responseAndError, 1)
 
 	req.conn.mutex.Lock()
 	req.conn.requests[req.requestId] = responseChan
@@ -128,12 +128,14 @@ func (req *Request) perform() (resp *Response, err error) {
 	req.conn.packets <- (packet)
 
 	if req.conn.opts.Timeout > 0 {
+		timer := time.NewTimer(req.conn.opts.Timeout)
 		select {
 			case respAndErr := <-responseChan:
+				timer.Stop()
 				resp = respAndErr.resp
 				err = respAndErr.err
 				break
-			case <-time.After(req.conn.opts.Timeout):
+			case <-timer.C:
 				req.conn.mutex.Lock()
 				delete(req.conn.requests, req.requestId)
 				req.conn.mutex.Unlock()
