@@ -149,7 +149,7 @@ func (req *Request) perform() (resp *Response, err error) {
 	}
 
 	if resp != nil && resp.Error != "" {
-		err = errors.New(resp.Error)
+		err = Error{resp.Code, resp.Error}
 	}
 	return
 }

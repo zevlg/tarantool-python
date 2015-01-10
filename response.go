@@ -35,14 +35,13 @@ func NewResponse(bytes []byte) (resp *Response) {
 	if resp.Code != OkCode {
 		resp.Error = body[KeyError].(string)
 	}
-
 	return
 }
 
-func (resp *Response) GoString (str string) {
-	str = fmt.Sprintf("<%d %d '%s'>\n", resp.RequestId, resp.Code, resp.Error)
-	for t := range(resp.Data) {
-		str += fmt.Sprintf("%v\n", t)
+func (resp *Response) String() (str string) {
+	if (resp.Code == OkCode) {
+		return fmt.Sprintf("<%d OK %v>", resp.RequestId, resp.Data)
+	} else {
+		return fmt.Sprintf("<%d ERR 0x%x %s>", resp.RequestId, resp.Code, resp.Error)
 	}
-	return
 }
