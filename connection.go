@@ -21,7 +21,7 @@ type Connection struct {
 	mutex      *sync.Mutex
 	requestId  uint32
 	Greeting   *Greeting
-	requests   map[uint32]chan responseAndError
+	requests   map[uint32]*responseAndError
 	packets    chan []byte
 	control    chan struct{}
 	opts       Opts
@@ -46,7 +46,7 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 		mutex:      &sync.Mutex{},
 		requestId:  0,
 		Greeting:   &Greeting{},
-		requests:   make(map[uint32]chan responseAndError),
+		requests:   make(map[uint32]*responseAndError),
 		packets:    make(chan []byte, 64),
 		control:    make(chan struct{}),
 		opts:       opts,
@@ -116,10 +116,10 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	}
 	err = conn.connection.Close()
 	conn.connection = nil
-	for requestId, respChan := range conn.requests {
-		respChan <- responseAndError{nil, neterr}
-		delete(conn.requests, requestId)
-		close(respChan)
+	for rid, resp := range conn.requests {
+		resp.e = neterr
+		close(resp.c)
+		delete(conn.requests, rid)
 	}
 	return
 }
@@ -173,11 +173,12 @@ func (conn *Connection) reader() {
 		}
 		resp := NewResponse(resp_bytes)
 		conn.mutex.Lock()
-		respChan := conn.requests[resp.RequestId]
+		r := conn.requests[resp.RequestId]
 		delete(conn.requests, resp.RequestId)
 		conn.mutex.Unlock()
-		if respChan != nil {
-			respChan <- responseAndError{resp, nil}
+		if r != nil {
+			r.r = resp
+			close(r.c)
 		} else {
 			log.Printf("tarantool: unexpected requestId (%d) in response", uint(resp.RequestId))
 		}

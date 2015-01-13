@@ -1,6 +1,6 @@
 package tarantool
 
-import(
+import (
 	"fmt"
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
@@ -13,8 +13,9 @@ type Response struct {
 }
 
 type responseAndError struct {
-	resp *Response
-	err  error
+	c chan struct{}
+	r *Response
+	e error
 }
 
 func NewResponse(bytes []byte) (resp *Response) {
@@ -27,7 +28,7 @@ func NewResponse(bytes []byte) (resp *Response) {
 	if body[KeyData] != nil {
 		data := body[KeyData].([]interface{})
 		resp.Data = make([]interface{}, len(data))
-		for i, v := range(data) {
+		for i, v := range data {
 			resp.Data[i] = v.([]interface{})
 		}
 	}
@@ -39,7 +40,7 @@ func NewResponse(bytes []byte) (resp *Response) {
 }
 
 func (resp *Response) String() (str string) {
-	if (resp.Code == OkCode) {
+	if resp.Code == OkCode {
 		return fmt.Sprintf("<%d OK %v>", resp.RequestId, resp.Data)
 	} else {
 		return fmt.Sprintf("<%d ERR 0x%x %s>", resp.RequestId, resp.Code, resp.Error)
