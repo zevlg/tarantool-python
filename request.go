@@ -192,15 +192,15 @@ func (req *Request) perform() (resp *Response, err error) {
 }
 
 func (req *Request) pack() (packet []byte, err error) {
-	var header, body, packetLength []byte
-
-	msg_header := make(map[int]interface{})
-	msg_header[KeyCode] = req.requestCode
-	msg_header[KeySync] = req.requestId
-
-	header, err = msgpack.Marshal(msg_header)
-	if err != nil {
-		return
+	var body []byte
+	rid := req.requestId
+	h := [...]byte{
+		0xce, 0, 0, 0, 0, // length
+		0x82,                           // 2 element map
+		KeyCode, byte(req.requestCode), // request code
+		KeySync, 0xce,
+		byte(rid >> 24), byte(rid >> 16),
+		byte(rid >> 8), byte(rid),
 	}
 
 	body, err = msgpack.Marshal(req.body)
@@ -208,15 +208,13 @@ func (req *Request) pack() (packet []byte, err error) {
 		return
 	}
 
-	length := uint32(len(header) + len(body))
-	packetLength, err = msgpack.Marshal(length)
-	if err != nil {
-		return
-	}
+	l := uint32(len(h) - 5 + len(body))
+	h[1] = byte(l >> 24)
+	h[2] = byte(l >> 16)
+	h[3] = byte(l >> 8)
+	h[4] = byte(l)
 
-	packet = append(packet, packetLength...)
-	packet = append(packet, header...)
-	packet = append(packet, body...)
+	packet = append(h[:], body...)
 	return
 }
 
