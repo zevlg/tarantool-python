@@ -42,8 +42,8 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 		mutex: &sync.Mutex{},
 		requestId: 0,
 		Greeting: &Greeting{},
-		requests: make(map[uint32]chan responseAndError),
-		packets: make(chan []byte),
+		requests: make(map[uint32]chan responseAndError, 64),
+		packets: make(chan []byte, 64),
 		opts: opts,
 	}
 
