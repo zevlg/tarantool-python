@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"gopkg.in/vmihailenco/msgpack.v2"
 	"io"
 	"log"
 	"net"
@@ -196,35 +195,27 @@ func write(connection io.Writer, data []byte) (err error) {
 	return
 }
 
-func read(length []byte, connection io.Reader) (response []byte, err error) {
-	var length_uint uint32
-	var l, tl int
+func read(length []byte, r io.Reader) (response []byte, err error) {
+	var need int
 
-	tl = 0
-	for tl < int(PacketLengthBytes) {
-		l, err = connection.Read(length[tl:])
-		tl += l
-		if err != nil {
-			return
-		}
-	}
-
-	err = msgpack.Unmarshal(length, &length_uint)
-	if err != nil {
+	if _, err = io.ReadFull(r, length); err != nil {
 		return
 	}
-
-	response = make([]byte, length_uint)
-	if length_uint > 0 {
-		tl = 0
-		for tl < int(length_uint) {
-			l, err = connection.Read(response[tl:])
-			tl += l
-			if err != nil {
-				return
-			}
-		}
+	if length[0] != 0xce {
+		err = errors.New("Wrong reponse header")
+		return
 	}
+	need = (int(length[1]) << 24) +
+		(int(length[2]) << 16) +
+		(int(length[3]) << 8) +
+		int(length[4])
+
+	if need == 0 {
+		err = errors.New("Response should not be 0 length")
+		return
+	}
+	response = make([]byte, need)
+	_, err = io.ReadFull(r, response)
 
 	return
 }
