@@ -171,7 +171,6 @@ func (req *Request) perform() (resp *Response, err error) {
 		select {
 		case <-r.c:
 			timer.Stop()
-			resp, err = r.r, r.e
 			break
 		case <-timer.C:
 			req.conn.mutex.Lock()
@@ -182,13 +181,9 @@ func (req *Request) perform() (resp *Response, err error) {
 		}
 	} else {
 		<-r.c
-		resp, err = r.r, r.e
 	}
 
-	if resp != nil && resp.Error != "" {
-		err = Error{resp.Code, resp.Error}
-	}
-	return
+	return r.get()
 }
 
 func (req *Request) pack() (packet []byte, err error) {
@@ -225,14 +220,16 @@ func (req *Request) future() (f *Future) {
 		r:    responseAndError{c: make(chan struct{})},
 	}
 	var packet []byte
-	if packet, f.r.e = req.pack(); f.r.e != nil {
+	if packet, f.r.r.Error = req.pack(); f.r.r.Error != nil {
+		close(f.r.c)
 		return
 	}
 
 	req.conn.mutex.Lock()
 	if req.conn.closed {
 		req.conn.mutex.Unlock()
-		f.r.e = errors.New("using closed connection")
+		f.r.r.Error = errors.New("using closed connection")
+		close(f.r.c)
 		return
 	}
 	req.conn.requests[req.requestId] = &f.r
@@ -246,7 +243,7 @@ func (req *Request) future() (f *Future) {
 	return
 }
 
-func (f *Future) Get() (*Response, error) {
+func (f *Future) wait() {
 	select {
 	case <-f.r.c:
 	default:
@@ -256,8 +253,7 @@ func (f *Future) Get() (*Response, error) {
 			f.conn.mutex.Lock()
 			delete(f.conn.requests, f.id)
 			f.conn.mutex.Unlock()
-			f.r.r = nil
-			f.r.e = errors.New("client timeout")
+			f.r.r.Error = errors.New("client timeout")
 			close(f.r.c)
 		}
 	}
@@ -266,5 +262,14 @@ func (f *Future) Get() (*Response, error) {
 		f.t = nil
 		f.tc = nil
 	}
-	return f.r.r, f.r.e
+}
+
+func (f *Future) Get() (*Response, error) {
+	f.wait()
+	return f.r.get()
+}
+
+func (f *Future) GetTyped(r interface{}) error {
+	f.wait()
+	return f.r.getTyped(r)
 }

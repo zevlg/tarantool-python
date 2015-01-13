@@ -116,7 +116,7 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	err = conn.connection.Close()
 	conn.connection = nil
 	for rid, resp := range conn.requests {
-		resp.e = neterr
+		resp.r.Error = neterr
 		close(resp.c)
 		delete(conn.requests, rid)
 	}
@@ -170,13 +170,19 @@ func (conn *Connection) reader() {
 			conn.closeConnection(err)
 			continue
 		}
-		resp := NewResponse(resp_bytes)
+		var resp Response
+		resp_bytes = resp.fill(resp_bytes)
+		if resp.Error != nil {
+			conn.closeConnection(resp.Error)
+			continue
+		}
 		conn.mutex.Lock()
 		r := conn.requests[resp.RequestId]
 		delete(conn.requests, resp.RequestId)
 		conn.mutex.Unlock()
 		if r != nil {
 			r.r = resp
+			r.b = resp_bytes
 			close(r.c)
 		} else {
 			log.Printf("tarantool: unexpected requestId (%d) in response", uint(resp.RequestId))
