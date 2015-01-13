@@ -1,19 +1,23 @@
 package tarantool
 
 import (
-	"net"
-	"gopkg.in/vmihailenco/msgpack.v2"
-	"sync/atomic"
+	"bufio"
 	"bytes"
-	"sync"
-	"time"
-	"log"
 	"errors"
+	"gopkg.in/vmihailenco/msgpack.v2"
+	"io"
+	"log"
+	"net"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type Connection struct {
 	addr       string
 	connection net.Conn
+	r          io.Reader
+	w          *bufio.Writer
 	mutex      *sync.Mutex
 	requestId  uint32
 	Greeting   *Greeting
@@ -29,22 +33,21 @@ type Greeting struct {
 }
 
 type Opts struct {
-	Timeout      time.Duration // milliseconds
-	Reconnect    time.Duration // milliseconds
+	Timeout   time.Duration // milliseconds
+	Reconnect time.Duration // milliseconds
 }
-
 
 func Connect(addr string, opts Opts) (conn *Connection, err error) {
 
 	conn = &Connection{
-		addr: addr,
+		addr:       addr,
 		connection: nil,
-		mutex: &sync.Mutex{},
-		requestId: 0,
-		Greeting: &Greeting{},
-		requests: make(map[uint32]chan responseAndError, 64),
-		packets: make(chan []byte, 64),
-		opts: opts,
+		mutex:      &sync.Mutex{},
+		requestId:  0,
+		Greeting:   &Greeting{},
+		requests:   make(map[uint32]chan responseAndError, 64),
+		packets:    make(chan []byte, 64),
+		opts:       opts,
 	}
 
 	err = conn.dial()
@@ -58,7 +61,7 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 }
 
 func (conn *Connection) Close() (err error) {
-	conn.closed = true;
+	conn.closed = true
 	err = conn.closeConnection(errors.New("client closed connection"))
 	return
 }
@@ -70,6 +73,8 @@ func (conn *Connection) dial() (err error) {
 	}
 	connection.(*net.TCPConn).SetNoDelay(true)
 	conn.connection = connection
+	conn.r = bufio.NewReaderSize(conn.connection, 128*1024)
+	conn.w = bufio.NewWriter(conn.connection)
 	greeting := make([]byte, 128)
 	// TODO: read all
 	_, err = conn.connection.Read(greeting)
@@ -81,15 +86,12 @@ func (conn *Connection) dial() (err error) {
 	return
 }
 
-func (conn *Connection) getConnection() (connection net.Conn) {
-	if c := conn.connection; c != nil {
-		return c
-	}
+func (conn *Connection) createConnection() (r io.Reader, w *bufio.Writer) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 	for conn.connection == nil {
 		if conn.closed {
-			return nil
+			return
 		}
 		err := conn.dial()
 		if err == nil {
@@ -97,10 +99,10 @@ func (conn *Connection) getConnection() (connection net.Conn) {
 		} else if conn.opts.Reconnect > 0 {
 			time.Sleep(conn.opts.Reconnect)
 		} else {
-			return nil
+			return
 		}
 	}
-	return conn.connection
+	return conn.r, conn.w
 }
 
 func (conn *Connection) closeConnection(neterr error) (err error) {
@@ -111,7 +113,7 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	}
 	err = conn.connection.Close()
 	conn.connection = nil
-	for requestId, respChan := range(conn.requests) {
+	for requestId, respChan := range conn.requests {
 		respChan <- responseAndError{nil, neterr}
 		delete(conn.requests, requestId)
 		close(respChan)
@@ -120,14 +122,25 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 }
 
 func (conn *Connection) writer() {
+	var w *bufio.Writer
 	for {
-		packet := <-conn.packets
-		connection := conn.getConnection()
-		if connection == nil {
-			return
+		var packet []byte
+		select {
+		case packet = <-conn.packets:
+		default:
+			if w = conn.w; w != nil {
+				if err := w.Flush(); err != nil {
+					conn.closeConnection(err)
+				}
+			}
+			packet = <-conn.packets
 		}
-		err := write(connection, packet)
-		if err != nil {
+		if w = conn.w; w == nil {
+			if _, w = conn.createConnection(); w == nil {
+				return
+			}
+		}
+		if err := write(w, packet); err != nil {
 			conn.closeConnection(err)
 			continue
 		}
@@ -136,12 +149,14 @@ func (conn *Connection) writer() {
 
 func (conn *Connection) reader() {
 	var length [PacketLengthBytes]byte
+	var r io.Reader
 	for {
-		connection := conn.getConnection()
-		if connection == nil {
-			return
+		if r = conn.r; r == nil {
+			if r, _ = conn.createConnection(); r == nil {
+				return
+			}
 		}
-		resp_bytes, err := read(length[:], connection)
+		resp_bytes, err := read(length[:], r)
 		if err != nil {
 			conn.closeConnection(err)
 			continue
@@ -159,7 +174,7 @@ func (conn *Connection) reader() {
 	}
 }
 
-func write(connection net.Conn, data []byte) (err error) {
+func write(connection io.Writer, data []byte) (err error) {
 	l, err := connection.Write(data)
 	if err != nil {
 		return
@@ -170,7 +185,7 @@ func write(connection net.Conn, data []byte) (err error) {
 	return
 }
 
-func read(length []byte, connection net.Conn) (response []byte, err error){
+func read(length []byte, connection io.Reader) (response []byte, err error) {
 	var length_uint uint32
 	var l, tl int
 
