@@ -110,10 +110,6 @@ func (conn *Connection) Auth(key, tuple []interface{}) (resp *Response, err erro
 
 
 func (req *Request) perform() (resp *Response, err error) {
-	if req.conn.closed {
-		return nil, errors.New("using closed connection")
-	}
-
 	packet, err := req.pack()
 	if err != nil {
 		return
@@ -122,6 +118,10 @@ func (req *Request) perform() (resp *Response, err error) {
 	responseChan := make(chan responseAndError, 1)
 
 	req.conn.mutex.Lock()
+	if req.conn.closed {
+		req.conn.mutex.Unlock()
+		return nil, errors.New("using closed connection")
+	}
 	req.conn.requests[req.requestId] = responseChan
 	req.conn.mutex.Unlock()
 

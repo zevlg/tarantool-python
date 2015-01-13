@@ -23,6 +23,7 @@ type Connection struct {
 	Greeting   *Greeting
 	requests   map[uint32]chan responseAndError
 	packets    chan []byte
+	control    chan struct{}
 	opts       Opts
 	closed     bool
 }
@@ -45,8 +46,9 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 		mutex:      &sync.Mutex{},
 		requestId:  0,
 		Greeting:   &Greeting{},
-		requests:   make(map[uint32]chan responseAndError, 64),
+		requests:   make(map[uint32]chan responseAndError),
 		packets:    make(chan []byte, 64),
+		control:    make(chan struct{}),
 		opts:       opts,
 	}
 
@@ -62,6 +64,7 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 
 func (conn *Connection) Close() (err error) {
 	conn.closed = true
+	close(conn.control)
 	err = conn.closeConnection(errors.New("client closed connection"))
 	return
 }
@@ -133,7 +136,14 @@ func (conn *Connection) writer() {
 					conn.closeConnection(err)
 				}
 			}
-			packet = <-conn.packets
+			select {
+			case packet = <-conn.packets:
+			case <-conn.control:
+				return
+			}
+		}
+		if packet == nil {
+			return
 		}
 		if w = conn.w; w == nil {
 			if _, w = conn.createConnection(); w == nil {
