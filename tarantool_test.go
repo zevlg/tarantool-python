@@ -5,6 +5,7 @@ import (
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"reflect"
 	"testing"
+	"time"
 )
 
 var server = "127.0.0.1:3013"
@@ -20,11 +21,14 @@ var upd_tuple = []interface{}{[]interface{}{"=", 1, "Hello Moon"}, []interface{}
 
 var functionName = "box.cfg()"
 var functionTuple = []interface{}{"box.schema.SPACE_ID"}
+var opts = Opts{Timeout: 500 * time.Millisecond}
+
+const N = 500
 
 func BenchmarkClientSerial(b *testing.B) {
 	var err error
 
-	client, err := Connect(server, Opts{})
+	client, err := Connect(server, opts)
 	if err != nil {
 		b.Errorf("No connection available")
 	}
@@ -46,7 +50,7 @@ func BenchmarkClientSerial(b *testing.B) {
 func BenchmarkClientFuture(b *testing.B) {
 	var err error
 
-	client, err := Connect(server, Opts{})
+	client, err := Connect(server, opts)
 	if err != nil {
 		b.Error(err)
 	}
@@ -56,12 +60,12 @@ func BenchmarkClientFuture(b *testing.B) {
 		b.Error(err)
 	}
 
-	for i := 0; i < b.N; i += 10 {
-		var fs [10]*Future
-		for j := 0; j < 10; j++ {
+	for i := 0; i < b.N; i += N {
+		var fs [N]*Future
+		for j := 0; j < N; j++ {
 			fs[j] = client.SelectAsync(spaceNo, indexNo, offset, limit, iterator, key)
 		}
-		for j := 0; j < 10; j++ {
+		for j := 0; j < N; j++ {
 			_, err = fs[j].Get()
 			if err != nil {
 				b.Error(err)
@@ -123,7 +127,7 @@ func init() {
 func BenchmarkClientFutureTyped(b *testing.B) {
 	var err error
 
-	client, err := Connect(server, Opts{})
+	client, err := Connect(server, opts)
 	if err != nil {
 		b.Errorf("No connection available")
 	}
@@ -133,12 +137,12 @@ func BenchmarkClientFutureTyped(b *testing.B) {
 		b.Errorf("No connection available")
 	}
 
-	for i := 0; i < b.N; i += 10 {
-		var fs [10]*Future
-		for j := 0; j < 10; j++ {
+	for i := 0; i < b.N; i += N {
+		var fs [N]*Future
+		for j := 0; j < N; j++ {
 			fs[j] = client.SelectAsync(spaceNo, indexNo, offset, limit, iterator, key)
 		}
-		for j := 0; j < 10; j++ {
+		for j := 0; j < N; j++ {
 			var r []tuple
 			err = fs[j].GetTyped(&r)
 			if err != nil {
@@ -152,8 +156,78 @@ func BenchmarkClientFutureTyped(b *testing.B) {
 	}
 }
 
+func BenchmarkClientFutureParallel(b *testing.B) {
+	var err error
+
+	client, err := Connect(server, opts)
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	_, err = client.Replace(spaceNo, tuple1)
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		exit := false
+		for !exit {
+			var fs [N]*Future
+			var j int
+			for j = 0; j < N && pb.Next(); j++ {
+				fs[j] = client.SelectAsync(spaceNo, indexNo, offset, limit, iterator, key)
+			}
+			exit = j < N
+			for j > 0 {
+				j--
+				_, err = fs[j].Get()
+				if err != nil {
+					b.Error(err)
+				}
+			}
+		}
+	})
+}
+
+func BenchmarkClientFutureParallelTyped(b *testing.B) {
+	var err error
+
+	client, err := Connect(server, opts)
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	_, err = client.Replace(spaceNo, tuple1)
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		exit := false
+		for !exit {
+			var fs [N]*Future
+			var j int
+			for j = 0; j < N && pb.Next(); j++ {
+				fs[j] = client.SelectAsync(spaceNo, indexNo, offset, limit, iterator, key)
+			}
+			exit = j < N
+			for j > 0 {
+				var r []tuple
+				j--
+				err = fs[j].GetTyped(&r)
+				if err != nil {
+					b.Error(err)
+				}
+				if len(r) != 1 || r[0].Id != 12 {
+					b.Errorf("Doesn't match %v", r)
+				}
+			}
+		}
+	})
+}
+
 func BenchmarkClientParrallel(b *testing.B) {
-	client, err := Connect(server, Opts{})
+	client, err := Connect(server, opts)
 	if err != nil {
 		b.Errorf("No connection available")
 	}
