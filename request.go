@@ -228,10 +228,12 @@ func (f *Future) wait() {
 		case <-f.r.c:
 		case <-f.tc:
 			f.conn.mutex.Lock()
-			delete(f.conn.requests, f.id)
+			if _, ok := f.conn.requests[f.id]; ok {
+				delete(f.conn.requests, f.id)
+				close(f.r.c)
+				f.r.r.Error = errors.New("client timeout")
+			}
 			f.conn.mutex.Unlock()
-			f.r.r.Error = errors.New("client timeout")
-			close(f.r.c)
 		}
 	}
 	if f.t != nil {

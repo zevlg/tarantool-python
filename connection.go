@@ -177,14 +177,14 @@ func (conn *Connection) reader() {
 			continue
 		}
 		conn.mutex.Lock()
-		r := conn.requests[resp.RequestId]
-		delete(conn.requests, resp.RequestId)
-		conn.mutex.Unlock()
-		if r != nil {
+		if r, ok := conn.requests[resp.RequestId]; ok {
+			delete(conn.requests, resp.RequestId)
 			r.r = resp
 			r.b = resp_bytes
 			close(r.c)
+			conn.mutex.Unlock()
 		} else {
+			conn.mutex.Unlock()
 			log.Printf("tarantool: unexpected requestId (%d) in response", uint(resp.RequestId))
 		}
 	}
