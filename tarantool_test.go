@@ -1,7 +1,10 @@
 package tarantool
 
 import (
+	"errors"
 	"fmt"
+	"gopkg.in/vmihailenco/msgpack.v2"
+	"reflect"
 	"testing"
 )
 
@@ -46,6 +49,84 @@ func BenchmarkClientFuture(b *testing.B) {
 
 	client, err := Connect(server, Opts{})
 	if err != nil {
+		b.Error(err)
+	}
+
+	_, err = client.Replace(spaceNo, tuple1)
+	if err != nil {
+		b.Error(err)
+	}
+
+	for i := 0; i < b.N; i += 10 {
+		var fs [10]*Future
+		for j := 0; j < 10; j++ {
+			fs[j] = client.SelectAsync(spaceNo, indexNo, offset, limit, iterator, key)
+		}
+		for j := 0; j < 10; j++ {
+			_, err = fs[j].Get()
+			if err != nil {
+				b.Error(err)
+			}
+		}
+
+	}
+}
+
+type tuple struct {
+	Id   int
+	Msg  string
+	Name string
+}
+
+func encodeTuple(e *msgpack.Encoder, v reflect.Value) error {
+	t := v.Interface().(tuple)
+	if err := e.EncodeSliceLen(3); err != nil {
+		return err
+	}
+	if err := e.EncodeInt(t.Id); err != nil {
+		return err
+	}
+	if err := e.EncodeString(t.Msg); err != nil {
+		return err
+	}
+	if err := e.EncodeString(t.Name); err != nil {
+		return err
+	}
+	return nil
+}
+
+func decodeTuple(d *msgpack.Decoder, v reflect.Value) error {
+	var err error
+	var l int
+	var t tuple
+	if l, err = d.DecodeSliceLen(); err != nil {
+		return err
+	}
+	if l != 3 {
+		return errors.New("array len doesn't match")
+	}
+	if t.Id, err = d.DecodeInt(); err != nil {
+		return err
+	}
+	if t.Msg, err = d.DecodeString(); err != nil {
+		return err
+	}
+	if t.Name, err = d.DecodeString(); err != nil {
+		return err
+	}
+	v.Set(reflect.ValueOf(t))
+	return nil
+}
+
+func init() {
+	msgpack.Register(reflect.TypeOf(new(tuple)).Elem(), encodeTuple, decodeTuple)
+}
+
+func BenchmarkClientFutureTyped(b *testing.B) {
+	var err error
+
+	client, err := Connect(server, Opts{})
+	if err != nil {
 		b.Errorf("No connection available")
 	}
 
@@ -60,9 +141,13 @@ func BenchmarkClientFuture(b *testing.B) {
 			fs[j] = client.SelectAsync(spaceNo, indexNo, offset, limit, iterator, key)
 		}
 		for j := 0; j < 10; j++ {
-			_, err = fs[j].Get()
+			var r []tuple
+			err = fs[j].GetTyped(&r)
 			if err != nil {
-				b.Errorf("No connection available")
+				b.Error(err)
+			}
+			if len(r) != 1 || r[0].Id != 12 {
+				b.Errorf("Doesn't match %v", r)
 			}
 		}
 
