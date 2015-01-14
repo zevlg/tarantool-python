@@ -1,27 +1,97 @@
 package tarantool
 
-import(
-	"testing"
+import (
 	"fmt"
+	"testing"
 )
 
+var server = "127.0.0.1:3013"
+var spaceNo = uint32(512)
+var indexNo = uint32(0)
+var limit = uint32(10)
+var offset = uint32(0)
+var iterator = IterAll
+var key = []interface{}{12}
+var tuple1 = []interface{}{12, "Hello World", "Olga"}
+var tuple2 = []interface{}{12, "Hello Mars", "Anna"}
+var upd_tuple = []interface{}{[]interface{}{"=", 1, "Hello Moon"}, []interface{}{"#", 2, 1}}
+
+var functionName = "box.cfg()"
+var functionTuple = []interface{}{"box.schema.SPACE_ID"}
+
+func BenchmarkClientSerial(b *testing.B) {
+	var err error
+
+	client, err := Connect(server, Opts{})
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	_, err = client.Replace(spaceNo, tuple1)
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, err = client.Select(spaceNo, indexNo, offset, limit, iterator, key)
+		if err != nil {
+			b.Errorf("No connection available")
+		}
+
+	}
+}
+
+func BenchmarkClientFuture(b *testing.B) {
+	var err error
+
+	client, err := Connect(server, Opts{})
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	_, err = client.Replace(spaceNo, tuple1)
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	for i := 0; i < b.N; i += 10 {
+		var fs [10]*Future
+		for j := 0; j < 10; j++ {
+			fs[j] = client.SelectAsync(spaceNo, indexNo, offset, limit, iterator, key)
+		}
+		for j := 0; j < 10; j++ {
+			_, err = fs[j].Get()
+			if err != nil {
+				b.Errorf("No connection available")
+			}
+		}
+
+	}
+}
+
+func BenchmarkClientParrallel(b *testing.B) {
+	client, err := Connect(server, Opts{})
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	_, err = client.Replace(spaceNo, tuple1)
+	if err != nil {
+		b.Errorf("No connection available")
+	}
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			_, err = client.Select(spaceNo, indexNo, offset, limit, iterator, key)
+			if err != nil {
+				b.Errorf("No connection available")
+			}
+		}
+	})
+}
+
 func TestClient(t *testing.T) {
-	server    := "127.0.0.1:3013"
-	spaceNo   := uint32(512)
-	indexNo   := uint32(0)
-	limit     := uint32(10)
-	offset    := uint32(0)
-	iterator  := IterAll
-	key       := []interface{}{ 12 }
-	tuple1    := []interface{}{ 12, "Hello World", "Olga" }
-	tuple2    := []interface{}{ 12, "Hello Mars", "Anna" }
-	upd_tuple := []interface{}{ []interface{}{ "=", 1, "Hello Moon" }, []interface{}{ "#", 2, 1 } }
-
-	functionName  := "box.cfg()"
-	functionTuple := []interface{}{ "box.schema.SPACE_ID" }
-
-
-	client, err := Connect(server)
+	client, err := Connect(server, Opts{})
 	if err != nil {
 		t.Errorf("No connection available")
 	}
@@ -82,7 +152,7 @@ func TestClient(t *testing.T) {
 	cnt2 := 500
 	for j := 0; j < cnt1; j++ {
 		for i := 0; i < cnt2; i++ {
-			go func(){
+			go func() {
 				resp, err = client.Select(spaceNo, indexNo, offset, limit, iterator, key)
 				responses <- resp
 			}()
