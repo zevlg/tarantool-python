@@ -97,7 +97,7 @@ func encodeTuple(e *msgpack.Encoder, v reflect.Value) error {
 func decodeTuple(d *msgpack.Decoder, v reflect.Value) error {
 	var err error
 	var l int
-	var t tuple
+	t := v.Addr().Interface().(*tuple)
 	if l, err = d.DecodeSliceLen(); err != nil {
 		return err
 	}
@@ -113,7 +113,6 @@ func decodeTuple(d *msgpack.Decoder, v reflect.Value) error {
 	if t.Name, err = d.DecodeString(); err != nil {
 		return err
 	}
-	v.Set(reflect.ValueOf(t))
 	return nil
 }
 
