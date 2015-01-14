@@ -155,51 +155,12 @@ func (conn *Connection) Auth(key, tuple []interface{}) (resp *Response, err erro
 // private
 //
 
-func (req *Request) wait(r *responseAndError) {
-	var err error
-	var packet []byte
-	if packet, err = req.pack(); err != nil {
-		return
-	}
-
-	req.conn.mutex.Lock()
-	if req.conn.closed {
-		req.conn.mutex.Unlock()
-		r.r.Error = errors.New("using closed connection")
-		return
-	}
-	req.conn.requests[req.requestId] = r
-	req.conn.mutex.Unlock()
-
-	req.conn.packets <- (packet)
-
-	if req.conn.opts.Timeout > 0 {
-		timer := time.NewTimer(req.conn.opts.Timeout)
-		select {
-		case <-r.c:
-			timer.Stop()
-			break
-		case <-timer.C:
-			req.conn.mutex.Lock()
-			delete(req.conn.requests, req.requestId)
-			req.conn.mutex.Unlock()
-			r.r.Error = errors.New("client timeout")
-		}
-	} else {
-		<-r.c
-	}
-}
-
 func (req *Request) perform() (resp *Response, err error) {
-	r := responseAndError{c: make(chan struct{})}
-	req.wait(&r)
-	return r.get()
+	return req.future().Get()
 }
 
 func (req *Request) performTyped(res interface{}) (err error) {
-	r := responseAndError{c: make(chan struct{})}
-	req.wait(&r)
-	return r.getTyped(res)
+	return req.future().GetTyped(res)
 }
 
 func (req *Request) pack() (packet []byte, err error) {
