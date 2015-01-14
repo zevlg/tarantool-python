@@ -61,6 +61,13 @@ func (conn *Connection) Select(spaceNo, indexNo, offset, limit, iterator uint32,
 	return
 }
 
+func (conn *Connection) SelectTyped(spaceNo, indexNo, offset, limit, iterator uint32, key []interface{}, result interface{}) error {
+	request := conn.NewRequest(SelectRequest)
+	request.fillSearch(spaceNo, indexNo, key)
+	request.fillIterator(offset, limit, iterator)
+	return request.performTyped(result)
+}
+
 func (conn *Connection) Insert(spaceNo uint32, tuple []interface{}) (resp *Response, err error) {
 	request := conn.NewRequest(InsertRequest)
 	request.fillInsert(spaceNo, tuple)
@@ -148,20 +155,20 @@ func (conn *Connection) Auth(key, tuple []interface{}) (resp *Response, err erro
 // private
 //
 
-func (req *Request) perform() (resp *Response, err error) {
+func (req *Request) wait(r *responseAndError) {
+	var err error
 	var packet []byte
 	if packet, err = req.pack(); err != nil {
 		return
 	}
 
-	r := responseAndError{c: make(chan struct{})}
-
 	req.conn.mutex.Lock()
 	if req.conn.closed {
 		req.conn.mutex.Unlock()
-		return nil, errors.New("using closed connection")
+		r.r.Error = errors.New("using closed connection")
+		return
 	}
-	req.conn.requests[req.requestId] = &r
+	req.conn.requests[req.requestId] = r
 	req.conn.mutex.Unlock()
 
 	req.conn.packets <- (packet)
@@ -176,14 +183,23 @@ func (req *Request) perform() (resp *Response, err error) {
 			req.conn.mutex.Lock()
 			delete(req.conn.requests, req.requestId)
 			req.conn.mutex.Unlock()
-			resp = nil
-			err = errors.New("client timeout")
+			r.r.Error = errors.New("client timeout")
 		}
 	} else {
 		<-r.c
 	}
+}
 
+func (req *Request) perform() (resp *Response, err error) {
+	r := responseAndError{c: make(chan struct{})}
+	req.wait(&r)
 	return r.get()
+}
+
+func (req *Request) performTyped(res interface{}) (err error) {
+	r := responseAndError{c: make(chan struct{})}
+	req.wait(&r)
+	return r.getTyped(res)
 }
 
 func (req *Request) pack() (packet []byte, err error) {

@@ -1,7 +1,6 @@
 package tarantool
 
 import (
-	"errors"
 	"fmt"
 	"gopkg.in/vmihailenco/msgpack.v2"
 	"reflect"
@@ -103,7 +102,7 @@ func decodeTuple(d *msgpack.Decoder, v reflect.Value) error {
 		return err
 	}
 	if l != 3 {
-		return errors.New("array len doesn't match")
+		return fmt.Errorf("array len doesn't match: %d", l)
 	}
 	if t.Id, err = d.DecodeInt(); err != nil {
 		return err
@@ -202,6 +201,13 @@ func TestClient(t *testing.T) {
 	fmt.Println("ERROR", err)
 	fmt.Println("Code", resp.Code)
 	fmt.Println("Data", resp.Data)
+	fmt.Println("----")
+
+	var tpl []tuple
+	err = client.SelectTyped(spaceNo, indexNo, offset, limit, iterator, key, &tpl)
+	fmt.Println("GetTyped")
+	fmt.Println("ERROR", err)
+	fmt.Println("Value", tpl)
 	fmt.Println("----")
 
 	resp, err = client.Replace(spaceNo, tuple2)
