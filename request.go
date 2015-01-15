@@ -16,7 +16,9 @@ type Request struct {
 type Future struct {
 	conn *Connection
 	id   uint32
-	r    responseAndError
+	resp *Response
+	err  error
+	c    chan struct{}
 	t    *time.Timer
 	tc   <-chan time.Time
 }
@@ -194,22 +196,22 @@ func (req *Request) future() (f *Future) {
 	f = &Future{
 		conn: req.conn,
 		id:   req.requestId,
-		r:    responseAndError{c: make(chan struct{})},
+		c:    make(chan struct{}),
 	}
 	var packet []byte
-	if packet, f.r.r.Error = req.pack(); f.r.r.Error != nil {
-		close(f.r.c)
+	if packet, f.err = req.pack(); f.err != nil {
+		close(f.c)
 		return
 	}
 
 	req.conn.mutex.Lock()
 	if req.conn.closed {
 		req.conn.mutex.Unlock()
-		f.r.r.Error = errors.New("using closed connection")
-		close(f.r.c)
+		f.err = errors.New("using closed connection")
+		close(f.c)
 		return
 	}
-	req.conn.requests[req.requestId] = &f.r
+	req.conn.requests[req.requestId] = &f
 	req.conn.mutex.Unlock()
 	req.conn.packets <- (packet)
 
@@ -222,16 +224,16 @@ func (req *Request) future() (f *Future) {
 
 func (f *Future) wait() {
 	select {
-	case <-f.r.c:
+	case <-f.c:
 	default:
 		select {
-		case <-f.r.c:
+		case <-f.c:
 		case <-f.tc:
 			f.conn.mutex.Lock()
 			if _, ok := f.conn.requests[f.id]; ok {
 				delete(f.conn.requests, f.id)
-				close(f.r.c)
-				f.r.r.Error = errors.New("client timeout")
+				close(f.c)
+				f.err = errors.New("client timeout")
 			}
 			f.conn.mutex.Unlock()
 		}
@@ -245,10 +247,18 @@ func (f *Future) wait() {
 
 func (f *Future) Get() (*Response, error) {
 	f.wait()
-	return f.r.get()
+	if f.err != nil {
+		return f.resp, f.err
+	}
+	f.err = f.resp.decodeBody()
+	return f.resp, f.err
 }
 
-func (f *Future) GetTyped(r interface{}) error {
+func (f *Future) GetTyped(r interface{}) (error) {
 	f.wait()
-	return f.r.getTyped(r)
+	if f.err != nil {
+		return f.err
+	}
+	f.err = f.resp.decodeBody(r)
+	return f.err
 }

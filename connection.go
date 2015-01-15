@@ -20,7 +20,7 @@ type Connection struct {
 	mutex      *sync.Mutex
 	requestId  uint32
 	Greeting   *Greeting
-	requests   map[uint32]*responseAndError
+	requests   map[uint32]*Future
 	packets    chan []byte
 	control    chan struct{}
 	opts       Opts
@@ -45,7 +45,7 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 		mutex:      &sync.Mutex{},
 		requestId:  0,
 		Greeting:   &Greeting{},
-		requests:   make(map[uint32]*responseAndError),
+		requests:   make(map[uint32]*Future),
 		packets:    make(chan []byte, 64),
 		control:    make(chan struct{}),
 		opts:       opts,
@@ -117,9 +117,9 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	conn.connection = nil
 	conn.r = nil
 	conn.w = nil
-	for rid, resp := range conn.requests {
-		resp.r.Error = neterr
-		close(resp.c)
+	for rid, fut := range conn.requests {
+		fut.err = neterr
+		close(fut.c)
 		delete(conn.requests, rid)
 	}
 	return
@@ -171,18 +171,16 @@ func (conn *Connection) reader() {
 			conn.closeConnection(err)
 			continue
 		}
-		var resp Response
-		resp_bytes = resp.fill(resp_bytes)
-		if resp.Error != nil {
-			conn.closeConnection(resp.Error)
+		resp, err := newResponse(resp_bytes)
+		if err != nil {
+			conn.closeConnection(err)
 			continue
 		}
 		conn.mutex.Lock()
-		if r, ok := conn.requests[resp.RequestId]; ok {
+		if fut, ok := conn.requests[resp.RequestId]; ok {
 			delete(conn.requests, resp.RequestId)
-			r.r = resp
-			r.b = resp_bytes
-			close(r.c)
+			fut.resp = resp
+			close(rae.c)
 			conn.mutex.Unlock()
 		} else {
 			conn.mutex.Unlock()
