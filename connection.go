@@ -159,7 +159,6 @@ func (conn *Connection) writer() {
 }
 
 func (conn *Connection) reader() {
-	var length [PacketLengthBytes]byte
 	var r io.Reader
 	for {
 		if r = conn.r; r == nil {
@@ -167,7 +166,7 @@ func (conn *Connection) reader() {
 				return
 			}
 		}
-		resp_bytes, err := read(length[:], r)
+		resp_bytes, err := read(r)
 		if err != nil {
 			conn.closeConnection(err)
 			continue
@@ -203,26 +202,27 @@ func write(connection io.Writer, data []byte) (err error) {
 	return
 }
 
-func read(length []byte, r io.Reader) (response []byte, err error) {
-	var need int
+func read(r io.Reader) (response []byte, err error) {
+	var lenbuf [PacketLengthBytes]byte
+	var length int
 
-	if _, err = io.ReadFull(r, length); err != nil {
+	if _, err = io.ReadFull(r, lenbuf[:]); err != nil {
 		return
 	}
-	if length[0] != 0xce {
+	if lenbuf[0] != 0xce {
 		err = errors.New("Wrong reponse header")
 		return
 	}
-	need = (int(length[1]) << 24) +
-		(int(length[2]) << 16) +
-		(int(length[3]) << 8) +
-		int(length[4])
+	length = (int(lenbuf[1]) << 24) +
+		(int(lenbuf[2]) << 16) +
+		(int(lenbuf[3]) << 8) +
+		int(lenbuf[4])
 
-	if need == 0 {
+	if length == 0 {
 		err = errors.New("Response should not be 0 length")
 		return
 	}
-	response = make([]byte, need)
+	response = make([]byte, length)
 	_, err = io.ReadFull(r, response)
 
 	return
