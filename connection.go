@@ -1,24 +1,28 @@
 package tarantool
 
 import (
-	"net"
-	"gopkg.in/vmihailenco/msgpack.v2"
-	"sync/atomic"
+	"bufio"
 	"bytes"
-	"sync"
-	"time"
-	"log"
 	"errors"
+	"io"
+	"log"
+	"net"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type Connection struct {
 	addr       string
 	connection net.Conn
+	r          io.Reader
+	w          *bufio.Writer
 	mutex      *sync.Mutex
 	requestId  uint32
 	Greeting   *Greeting
-	requests   map[uint32]chan responseAndError
+	requests   map[uint32]*responseAndError
 	packets    chan []byte
+	control    chan struct{}
 	opts       Opts
 	closed     bool
 }
@@ -29,22 +33,22 @@ type Greeting struct {
 }
 
 type Opts struct {
-	Timeout      time.Duration // milliseconds
-	Reconnect    time.Duration // milliseconds
+	Timeout   time.Duration // milliseconds
+	Reconnect time.Duration // milliseconds
 }
-
 
 func Connect(addr string, opts Opts) (conn *Connection, err error) {
 
 	conn = &Connection{
-		addr: addr,
+		addr:       addr,
 		connection: nil,
-		mutex: &sync.Mutex{},
-		requestId: 0,
-		Greeting: &Greeting{},
-		requests: make(map[uint32]chan responseAndError),
-		packets: make(chan []byte),
-		opts: opts,
+		mutex:      &sync.Mutex{},
+		requestId:  0,
+		Greeting:   &Greeting{},
+		requests:   make(map[uint32]*responseAndError),
+		packets:    make(chan []byte, 64),
+		control:    make(chan struct{}),
+		opts:       opts,
 	}
 
 	err = conn.dial()
@@ -58,7 +62,8 @@ func Connect(addr string, opts Opts) (conn *Connection, err error) {
 }
 
 func (conn *Connection) Close() (err error) {
-	conn.closed = true;
+	conn.closed = true
+	close(conn.control)
 	err = conn.closeConnection(errors.New("client closed connection"))
 	return
 }
@@ -70,6 +75,8 @@ func (conn *Connection) dial() (err error) {
 	}
 	connection.(*net.TCPConn).SetNoDelay(true)
 	conn.connection = connection
+	conn.r = bufio.NewReaderSize(conn.connection, 128*1024)
+	conn.w = bufio.NewWriter(conn.connection)
 	greeting := make([]byte, 128)
 	// TODO: read all
 	_, err = conn.connection.Read(greeting)
@@ -81,15 +88,12 @@ func (conn *Connection) dial() (err error) {
 	return
 }
 
-func (conn *Connection) getConnection() (connection net.Conn) {
-	if c := conn.connection; c != nil {
-		return c
-	}
+func (conn *Connection) createConnection() (r io.Reader, w *bufio.Writer) {
 	conn.mutex.Lock()
 	defer conn.mutex.Unlock()
 	for conn.connection == nil {
 		if conn.closed {
-			return nil
+			return
 		}
 		err := conn.dial()
 		if err == nil {
@@ -97,10 +101,10 @@ func (conn *Connection) getConnection() (connection net.Conn) {
 		} else if conn.opts.Reconnect > 0 {
 			time.Sleep(conn.opts.Reconnect)
 		} else {
-			return nil
+			return
 		}
 	}
-	return conn.connection
+	return conn.r, conn.w
 }
 
 func (conn *Connection) closeConnection(neterr error) (err error) {
@@ -111,23 +115,41 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	}
 	err = conn.connection.Close()
 	conn.connection = nil
-	for requestId, respChan := range(conn.requests) {
-		respChan <- responseAndError{nil, neterr}
-		delete(conn.requests, requestId)
-		close(respChan)
+	for rid, resp := range conn.requests {
+		resp.r.Error = neterr
+		close(resp.c)
+		delete(conn.requests, rid)
 	}
 	return
 }
 
 func (conn *Connection) writer() {
+	var w *bufio.Writer
 	for {
-		packet := <-conn.packets
-		connection := conn.getConnection()
-		if connection == nil {
+		var packet []byte
+		select {
+		case packet = <-conn.packets:
+		default:
+			if w = conn.w; w != nil {
+				if err := w.Flush(); err != nil {
+					conn.closeConnection(err)
+				}
+			}
+			select {
+			case packet = <-conn.packets:
+			case <-conn.control:
+				return
+			}
+		}
+		if packet == nil {
 			return
 		}
-		err := write(connection, packet)
-		if err != nil {
+		if w = conn.w; w == nil {
+			if _, w = conn.createConnection(); w == nil {
+				return
+			}
+		}
+		if err := write(w, packet); err != nil {
 			conn.closeConnection(err)
 			continue
 		}
@@ -136,30 +158,39 @@ func (conn *Connection) writer() {
 
 func (conn *Connection) reader() {
 	var length [PacketLengthBytes]byte
+	var r io.Reader
 	for {
-		connection := conn.getConnection()
-		if connection == nil {
-			return
+		if r = conn.r; r == nil {
+			if r, _ = conn.createConnection(); r == nil {
+				return
+			}
 		}
-		resp_bytes, err := read(length[:], connection)
+		resp_bytes, err := read(length[:], r)
 		if err != nil {
 			conn.closeConnection(err)
 			continue
 		}
-		resp := NewResponse(resp_bytes)
+		var resp Response
+		resp_bytes = resp.fill(resp_bytes)
+		if resp.Error != nil {
+			conn.closeConnection(resp.Error)
+			continue
+		}
 		conn.mutex.Lock()
-		respChan := conn.requests[resp.RequestId]
-		delete(conn.requests, resp.RequestId)
-		conn.mutex.Unlock()
-		if respChan != nil {
-			respChan <- responseAndError{resp, nil}
+		if r, ok := conn.requests[resp.RequestId]; ok {
+			delete(conn.requests, resp.RequestId)
+			r.r = resp
+			r.b = resp_bytes
+			close(r.c)
+			conn.mutex.Unlock()
 		} else {
+			conn.mutex.Unlock()
 			log.Printf("tarantool: unexpected requestId (%d) in response", uint(resp.RequestId))
 		}
 	}
 }
 
-func write(connection net.Conn, data []byte) (err error) {
+func write(connection io.Writer, data []byte) (err error) {
 	l, err := connection.Write(data)
 	if err != nil {
 		return
@@ -170,35 +201,27 @@ func write(connection net.Conn, data []byte) (err error) {
 	return
 }
 
-func read(length []byte, connection net.Conn) (response []byte, err error){
-	var length_uint uint32
-	var l, tl int
+func read(length []byte, r io.Reader) (response []byte, err error) {
+	var need int
 
-	tl = 0
-	for tl < int(PacketLengthBytes) {
-		l, err = connection.Read(length[tl:])
-		tl += l
-		if err != nil {
-			return
-		}
-	}
-
-	err = msgpack.Unmarshal(length, &length_uint)
-	if err != nil {
+	if _, err = io.ReadFull(r, length); err != nil {
 		return
 	}
-
-	response = make([]byte, length_uint)
-	if length_uint > 0 {
-		tl = 0
-		for tl < int(length_uint) {
-			l, err = connection.Read(response[tl:])
-			tl += l
-			if err != nil {
-				return
-			}
-		}
+	if length[0] != 0xce {
+		err = errors.New("Wrong reponse header")
+		return
 	}
+	need = (int(length[1]) << 24) +
+		(int(length[2]) << 16) +
+		(int(length[3]) << 8) +
+		int(length[4])
+
+	if need == 0 {
+		err = errors.New("Response should not be 0 length")
+		return
+	}
+	response = make([]byte, need)
+	_, err = io.ReadFull(r, response)
 
 	return
 }
