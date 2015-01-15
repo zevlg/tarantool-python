@@ -115,6 +115,8 @@ func (conn *Connection) closeConnection(neterr error) (err error) {
 	}
 	err = conn.connection.Close()
 	conn.connection = nil
+	conn.r = nil
+	conn.w = nil
 	for rid, resp := range conn.requests {
 		resp.r.Error = neterr
 		close(resp.c)
