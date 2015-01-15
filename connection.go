@@ -180,7 +180,7 @@ func (conn *Connection) reader() {
 		if fut, ok := conn.requests[resp.RequestId]; ok {
 			delete(conn.requests, resp.RequestId)
 			fut.resp = resp
-			close(rae.c)
+			close(fut.c)
 			conn.mutex.Unlock()
 		} else {
 			conn.mutex.Unlock()

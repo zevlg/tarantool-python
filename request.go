@@ -211,7 +211,7 @@ func (req *Request) future() (f *Future) {
 		close(f.c)
 		return
 	}
-	req.conn.requests[req.requestId] = &f
+	req.conn.requests[req.requestId] = f
 	req.conn.mutex.Unlock()
 	req.conn.packets <- (packet)
 
@@ -259,6 +259,6 @@ func (f *Future) GetTyped(r interface{}) (error) {
 	if f.err != nil {
 		return f.err
 	}
-	f.err = f.resp.decodeBody(r)
+	f.err = f.resp.decodeBodyTyped(r)
 	return f.err
 }

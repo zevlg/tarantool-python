@@ -49,12 +49,12 @@ func (resp *Response) decodeHeader() (err error) {
 }
 
 func (resp *Response) decodeBody() (err error) {
-	if len(resp.buf.Len()) > 2 {
+	if resp.buf.Len() > 2 {
 		var body map[int]interface{}
 		d := msgpack.NewDecoder(&resp.buf)
 
 		if err = d.Decode(&body); err != nil {
-			return nil, err
+			return err
 		}
 
 		if body[KeyData] != nil {
@@ -64,15 +64,19 @@ func (resp *Response) decodeBody() (err error) {
 				resp.Data[i] = v.([]interface{})
 			}
 		}
+		if body[KeyError] != nil {
+			resp.Error = body[KeyError].(string)
+		}
 
 		if resp.Code != OkCode {
-			err = Error{resp.Code, body[KeyError].(string)}
+			err = Error{resp.Code, resp.Error}
 		}
 	}
+	return
 }
 
 func (resp *Response) decodeBodyTyped(res interface{}) (err error) {
-	if len(resp.buf.Len()) > 0 {
+	if resp.buf.Len() > 0 {
 		var l int
 		d := msgpack.NewDecoder(&resp.buf)
 		if l, err = d.DecodeMapLen(); err != nil {
@@ -97,7 +101,7 @@ func (resp *Response) decodeBodyTyped(res interface{}) (err error) {
 		}
 
 		if resp.Code != OkCode {
-			err = Error{resp.Code, body[KeyError].(string)}
+			err = Error{resp.Code, resp.Error}
 		}
 	}
 	return
