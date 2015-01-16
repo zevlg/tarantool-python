@@ -171,7 +171,9 @@ func (conn *Connection) reader() {
 			conn.closeConnection(err)
 			continue
 		}
-		resp, err := newResponse(resp_bytes)
+		resp := Response{buf:smallBuf{b:resp_bytes}}
+		err = resp.decodeHeader()
+		//resp, err := newResponse(resp_bytes)
 		if err != nil {
 			conn.closeConnection(err)
 			continue

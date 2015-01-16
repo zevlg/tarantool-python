@@ -16,11 +16,10 @@ type Request struct {
 type Future struct {
 	conn *Connection
 	id   uint32
-	resp *Response
+	resp Response
 	err  error
 	c    chan struct{}
 	t    *time.Timer
-	tc   <-chan time.Time
 }
 
 func (conn *Connection) NewRequest(requestCode int32) (req *Request) {
@@ -217,7 +216,6 @@ func (req *Request) future() (f *Future) {
 
 	if req.conn.opts.Timeout > 0 {
 		f.t = time.NewTimer(req.conn.opts.Timeout)
-		f.tc = f.t.C
 	}
 	return
 }
@@ -226,32 +224,35 @@ func (f *Future) wait() {
 	select {
 	case <-f.c:
 	default:
-		select {
-		case <-f.c:
-		case <-f.tc:
-			f.conn.mutex.Lock()
-			if _, ok := f.conn.requests[f.id]; ok {
-				delete(f.conn.requests, f.id)
-				close(f.c)
-				f.err = errors.New("client timeout")
+		if t := f.t; t != nil {
+			select {
+			case <-f.c:
+			case <-t.C:
+				f.conn.mutex.Lock()
+				if _, ok := f.conn.requests[f.id]; ok {
+					delete(f.conn.requests, f.id)
+					close(f.c)
+					f.err = errors.New("client timeout")
+				}
+				f.conn.mutex.Unlock()
 			}
-			f.conn.mutex.Unlock()
+		} else {
+			<-f.c
 		}
 	}
 	if f.t != nil {
 		f.t.Stop()
 		f.t = nil
-		f.tc = nil
 	}
 }
 
 func (f *Future) Get() (*Response, error) {
 	f.wait()
 	if f.err != nil {
-		return f.resp, f.err
+		return &f.resp, f.err
 	}
 	f.err = f.resp.decodeBody()
-	return f.resp, f.err
+	return &f.resp, f.err
 }
 
 func (f *Future) GetTyped(r interface{}) (error) {
