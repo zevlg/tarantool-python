@@ -1,6 +1,6 @@
 # Tarantool
 
-[Tarantool 1.6](http://tarantool.org/) client on Go.
+[Tarantool 1.6+](http://tarantool.org/) client on Go.
 
 ## Usage
 
@@ -142,6 +142,3 @@ func main() {
 // #=> Data []
 // #=> ----
 ```
-
-## Contributors
-@mialinx, не хочешь забрать клиент на суппорт? @kostja будет безумно рад
