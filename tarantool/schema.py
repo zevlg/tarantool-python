@@ -7,8 +7,8 @@ It is a Tarantool schema description.
 
 import six
 
-from tarantool.error import SchemaError, DatabaseError
-import tarantool.const as const
+from .error import SchemaError, DatabaseError
+from . import const
 
 
 class SchemaIndex(object):

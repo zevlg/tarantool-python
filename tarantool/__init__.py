@@ -3,15 +3,15 @@
 
 __version__ = "0.5.4"
 
-from tarantool.connection import Connection
-from tarantool.const import (
+from .connection import Connection
+from .const import (
     SOCKET_TIMEOUT,
     RECONNECT_MAX_ATTEMPTS,
     RECONNECT_DELAY,
     ENCODING_DEFAULT
 )
 
-from tarantool.error import (
+from .error import (
     Error,
     DatabaseError,
     NetworkError,
@@ -19,7 +19,7 @@ from tarantool.error import (
     RetryWarning
 )
 
-from tarantool.schema import (
+from .schema import (
     Schema,
     SchemaError
 )

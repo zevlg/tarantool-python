@@ -5,14 +5,14 @@ import sys
 import msgpack
 import yaml
 
-from tarantool.const import (
+from .const import (
     IPROTO_CODE,
     IPROTO_DATA,
     IPROTO_ERROR,
     IPROTO_SYNC,
     REQUEST_TYPE_ERROR
 )
-from tarantool.error import DatabaseError, tnt_strerror
+from .error import DatabaseError, tnt_strerror
 
 if sys.version_info < (2, 6):
     bytes = str    # pylint: disable=W0622

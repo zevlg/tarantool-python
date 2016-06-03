@@ -18,11 +18,9 @@ try:
 except ImportError:
     from ctypes import c_longlong as c_ssize_t
 
-import tarantool
-from tarantool.response import Response
-from tarantool.request import (
+from .response import Response
+from .request import (
     Request,
-    RequestOK,
     RequestCall,
     RequestDelete,
     RequestEval,
@@ -36,8 +34,8 @@ from tarantool.request import (
     RequestUpsert,
     RequestAuthenticate)
 
-from tarantool.space import Space
-from tarantool.const import (
+from .space import Space
+from .const import (
     SOCKET_TIMEOUT,
     RECONNECT_MAX_ATTEMPTS,
     RECONNECT_DELAY,
@@ -47,12 +45,12 @@ from tarantool.const import (
     IPROTO_GREETING_SIZE,
     ENCODING_DEFAULT)
 
-from tarantool.error import (
-    NetworkError,
+from .error import (
     DatabaseError,
-    warn,
+    NetworkError,
+    NetworkWarning,
     RetryWarning,
-    NetworkWarning)
+    warn)
 
 from .schema import Schema
 from .utils import check_key, greeting_decode, version_id
@@ -67,11 +65,6 @@ class Connection(object):
     Also this class provides low-level interface to data manipulation
     (insert/delete/update/select).
     '''
-    Error = tarantool.error
-    DatabaseError = tarantool.error.DatabaseError
-    InterfaceError = tarantool.error.InterfaceError
-    SchemaError = tarantool.error.SchemaError
-    NetworkError = tarantool.error.NetworkError
 
     def __init__(self, host, port,
                  user=None,
@@ -436,6 +429,18 @@ class Connection(object):
             space_name = self.schema.get_space(space_name).sid
         request = RequestInsert(self, space_name, values)
         return self._send_request(request)
+
+    def multi_insert(self, space_name, insert_values):
+        """Send multiple INSERT requests at a time."""
+        if isinstance(space_name, six.string_types):
+            space_name = self.schema.get_space(space_name).sid
+
+        requests = [RequestInsert(rv) for rv in insert_values]
+
+        self._opt_reconnect()
+        self._socket.sendall(''.join(map(bytes, requests)))
+        resps = [Response(self, self._read_response()) for _ in requests]
+        return resps
 
     def delete(self, space_name, key, **kwargs):
         '''

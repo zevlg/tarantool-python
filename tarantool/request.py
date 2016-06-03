@@ -8,7 +8,7 @@ import six
 import msgpack
 import hashlib
 
-from tarantool.const import (
+from .const import (
     IPROTO_CODE,
     IPROTO_SYNC,
     IPROTO_SPACE_ID,
