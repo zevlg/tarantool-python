@@ -60,7 +60,7 @@ class Space(object):
 
     def upsert(self, *args, **kwargs):
         '''
-        Execute UPDATE request.
+        Execute UPSERT request.
 
         See `~tarantool.connection.upsert` for more information
         '''
